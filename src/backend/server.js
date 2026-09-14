@@ -25,7 +25,7 @@ const { getRouteAlternatives } = require("./engines/routeOptimizer");
 const { rankFleetMatches } = require("./engines/fleetMatcher");
 
 // AI Service
-const { evaluateActionWithAI, processChatQuery } = require("./aiService");
+const { classifyExcursion, generateReroutingStrategy, processChatQuery } = require("./aiService");
 
 const app = express();
 app.use(cors());
@@ -78,17 +78,28 @@ eventBus.on("disruption.created", async (disruption) => {
         if (index !== -1) availableFleets.splice(index, 1);
       }
       
-      // 4. Create Recommendation (AI as explainer would happen here or downstream)
+      // 4. Create Recommendation — AI generates the explanation
+      const idleFleetsList = availableFleets.slice(0, 3);
+      const aiStrategy = await generateReroutingStrategy(
+        disruption.type,
+        disruption.geometry.locationName,
+        impactedShipments,
+        idleFleetsList
+      );
+
       const rec = new Recommendation({
         entityType: "Shipment",
         entityId: shipment.shipmentId,
         recommendationType: "Reroute & Assign Fleet",
         score: alternatives[0].riskScore,
         confidence: 85,
-        rationale: alternatives[0].rationale + (selectedFleet ? ` Matches with idle asset ${selectedFleet.fleet.assetId}.` : ""),
+        rationale: aiStrategy.recommendedAction
+          ? `${aiStrategy.recommendedAction} | Route: ${aiStrategy.alternateRoute || alternatives[0].rationale}` + (selectedFleet ? ` | Fleet: ${selectedFleet.fleet.assetId}` : "")
+          : alternatives[0].rationale + (selectedFleet ? ` Matches with idle asset ${selectedFleet.fleet.assetId}.` : ""),
         evidence: {
           alternateRoute: alternatives[0],
-          fleetMatch: selectedFleet || null
+          fleetMatch: selectedFleet || null,
+          aiStrategy
         }
       });
       await rec.save();
@@ -112,22 +123,25 @@ eventBus.on("sensor.reading.received", async (log) => {
   const evalResult = evaluateTelemetry(log, ruleProfile, openExcursion);
   
   if (evalResult.action === "OPEN_EXCURSION") {
+    // Call watsonx.ai to classify severity and get the GDP-compliant recommended action
+    const aiClassification = await classifyExcursion(log);
+
     const exc = new Excursion({
       shipmentId: log.shipmentId,
       ruleProfileId: ruleProfile._id,
       startedAt: log.timestamp,
       peakTempC: log.temperatureCelsius,
       minTempC: log.temperatureCelsius,
-      severity: evalResult.severity
+      severity: aiClassification.severity || evalResult.severity
     });
     await exc.save();
     
     const alert = new Alert({
-      severity: evalResult.severity === "Critical" ? "Critical" : "High",
+      severity: aiClassification.severity === "Critical" ? "Critical" : "High",
       entityType: "Excursion",
       entityId: exc._id,
-      title: "Cold Chain Breach Detected",
-      message: `Temperature ${log.temperatureCelsius}°C exceeded limits for ${shipment.shipmentId}`
+      title: `Cold Chain Breach — ${aiClassification.severity} Excursion Detected`,
+      message: `${aiClassification.recommendedAction} | Shipment: ${shipment.shipmentId} @ ${log.temperatureCelsius}°C`
     });
     await alert.save();
     io.emit("telemetry.alert", alert);
@@ -338,6 +352,37 @@ app.post("/api/v1/recommendations/:id/approve", async (req, res) => {
     
     io.emit("action.completed", { recommendation: rec });
     res.json({ success: true, message: "Action approved and audit logged." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/v1/recommendations/:id/reject", async (req, res) => {
+  try {
+    const rec = await Recommendation.findById(req.params.id);
+    if (!rec) return res.status(404).json({ error: "Recommendation not found" });
+
+    rec.status = "Rejected";
+    await rec.save();
+
+    const user = getMockUser();
+    await new AuditEvent({
+      actorType: user.actorType, actorId: user.actorId,
+      eventType: "RejectRecommendation", entityType: "Recommendation", entityId: rec._id,
+      payload: { reason: req.body.reason || "Manually rejected by operator" }
+    }).save();
+
+    io.emit("action.completed", { recommendation: rec });
+    res.json({ success: true, message: "Action rejected and audit logged." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/v1/audit", async (req, res) => {
+  try {
+    const events = await AuditEvent.find().sort({ createdAt: -1 }).limit(50).lean();
+    res.json({ events });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

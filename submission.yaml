@@ -1,69 +1,82 @@
 # =============================================================================
 # HACKATHON SUBMISSION METADATA
 # =============================================================================
-# Instructions:
-#   - Fill in ALL required fields (marked with # REQUIRED)
-#   - Optional fields can be left as empty strings ""
-#   - Do NOT rename this file — the evaluation pipeline reads it by name
-#   - Use double quotes around all string values
-# =============================================================================
 
 team:
-  name: ""                             # REQUIRED — e.g., "Orion Squad"
-  track: ""                            # REQUIRED — one of: AI | DevOps | Sustainability | Open
+  name: "Error Fellows"
+  track: "AI"
   lead:
-    name: ""                           # REQUIRED — e.g., "Alice Chen"
-    email: ""                          # REQUIRED — e.g., "alice.chen@ibm.com"
+    name: "Priyank"
+    email: "priyank@errorfellows.dev"
   members:
-    - name: ""                         # REQUIRED — Team member 1
-      email: ""
-    - name: ""                         # Add more members by copying the two lines above
+    - name: "Priyank"
+      email: "priyank@errorfellows.dev"
+    - name: ""
       email: ""
     - name: ""
       email: ""
 
 submission:
-  title: ""                            # REQUIRED — Project display name, e.g., "SmartOps Dashboard"
+  title: "ColdChain AI Copilot — Supply Chain Disruption & Fleet Optimisation"
 
-  problem_statement: >                 # REQUIRED — 1-3 sentences. What problem? Who has it?
-    Replace this text with a concise description of the real-world problem
-    your project addresses and who experiences it.
+  problem_statement: >
+    Supply chain operations teams managing cold-chain pharmaceutical shipments
+    (vaccines, biologics) face a dual crisis: disruptions such as port strikes,
+    blizzards, and hurricanes cascade across hundreds of active shipments in ways
+    that are impossible to track manually, while IoT temperature sensors generate
+    thousands of readings per day that go unanalysed until a $500K+ cargo arrives
+    spoiled at its destination. The combination means operations managers are always
+    reacting too late — after the damage is done.
 
-  solution_summary: >                  # REQUIRED — 1-3 sentences. What did you build?
-    Replace this text with a clear description of your solution
-    and how it addresses the problem above.
+  solution_summary: >
+    ColdChain AI Copilot is a real-time supply chain control tower that continuously
+    correlates live IoT sensor telemetry, active disruption events, shipment routes,
+    and fleet availability using deterministic engines for risk scoring, route
+    optimisation, and cold-chain excursion detection. An IBM watsonx.ai-powered
+    operations copilot (Llama 4 Maverick) overlays these structured results with
+    natural-language explanations, ranked recommendations, and human-in-the-loop
+    approval workflows — so operators can detect, triage, and act on disruptions
+    before cargo is compromised.
 
-  key_features:                        # REQUIRED — List 3 to 5 specific features you implemented
-    - ""                               # e.g., "Real-time pipeline anomaly detection using watsonx.ai"
-    - ""
-    - ""
-    - ""                               # optional 4th
-    - ""                               # optional 5th
+  key_features:
+    - "Real-time IoT cold-chain excursion detection with GDP-compliant severity classification (Minor/Major/Critical) powered by watsonx.ai"
+    - "Event-driven disruption impact engine: maps port strikes, blizzards, and hurricanes to affected shipments using Haversine geospatial intersection"
+    - "Deterministic risk scoring engine with 6-factor weighted model (disruption exposure, deadline proximity, cargo criticality, cold-chain risk, financial exposure, route dependency)"
+    - "AI-powered route optimiser and fleet matcher: ranks rerouting alternatives and matches idle reefer trucks to impacted cold-chain shipments"
+    - "Live AI Operations Copilot (watsonx.ai) with full system-state context for natural-language Q&A, recommendation explanations, and approve/reject action workflows with audit trail"
 
   tech_stack:
-    languages: []                      # REQUIRED — e.g., ["Python", "TypeScript"]
-    frameworks: []                     # e.g., ["FastAPI", "React"]
-    ibm_technologies: []               # e.g., ["watsonx.ai", "IBM Bob", "IBM Cloud Functions"]
-    databases: []                      # e.g., ["PostgreSQL", "Redis"]
-    other: []                          # e.g., ["Docker", "GitHub Actions", "Slack API"]
+    languages: ["JavaScript", "TypeScript"]
+    frameworks: ["Next.js 16", "React 19", "Express 5", "Socket.IO", "Mongoose", "Tailwind CSS 4", "Recharts", "React Leaflet"]
+    ibm_technologies: ["watsonx.ai (meta-llama/llama-4-maverick-17b-128e-instruct-fp8)", "IBM watsonx AI Node.js SDK (@ibm-cloud/watsonx-ai)", "IBM Bob"]
+    databases: ["MongoDB 7 (via Mongoose ODM)"]
+    other: ["Node.js 20", "Socket.IO WebSockets", "Leaflet geospatial maps", "Docker (optional)"]
 
-  what_we_are_most_proud_of: >         # Optional but recommended — guides judges to your best work
-    Replace with what aspect of the submission you consider strongest
-    and want judges to pay special attention to.
+  what_we_are_most_proud_of: >
+    The architecture principle we are most proud of is the clean separation between
+    deterministic computation and generative AI. Every numerical fact shown to the
+    operator — risk scores, excursion severity, route costs, fleet match scores —
+    is produced by a deterministic, testable engine. watsonx.ai is used exclusively
+    as an explainer and orchestrator: it interprets structured tool outputs, generates
+    human-readable rationale, and classifies cold-chain severity using GDP guidelines.
+    This means the system is correct-by-design, not hallucination-dependent, which is
+    exactly the production-grade pattern the architecture spec calls "the differentiator."
 
-  known_limitations: >                 # Optional but recommended — be honest about gaps
-    Replace with any known limitations, incomplete features,
-    or shortcuts taken due to time constraints.
+  known_limitations: >
+    Authentication is mocked (single hardcoded Operations Manager role). MongoDB runs
+    locally — no cloud deployment for this submission. The route graph is a demo
+    network (5 US hubs); real deployments would integrate a live routing engine.
+    The IoT sensor stream is simulated at 5-second intervals; production would use
+    an MQTT gateway. Demo video shows local execution only — live demo URL is NOT DEPLOYED.
 
 # =============================================================================
 # ARTIFACT LOCATIONS
-# These paths are relative to the repo root. Only change if you moved files.
 # =============================================================================
 artifacts:
   source_code: "src/"
   setup_guide: "docs/setup-guide.md"
   architecture_doc: "docs/architecture.md"
-  demo_video: "demo/demo-video-link.txt"   # URL to hosted video (YouTube, Loom, Box)
-  live_demo: "demo/live-demo-url.txt"      # URL to deployed demo (optional)
+  demo_video: "demo/demo-video-link.txt"
+  live_demo: "demo/live-demo-url.txt"
   screenshots: "demo/screenshots/"
   presentation: "presentation/"

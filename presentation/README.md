@@ -1,30 +1,19 @@
 # Presentation
 
-Place your slide deck in this folder.
+Slide deck: **slides.pdf** (to be added before submission deadline)
 
-## Accepted Formats
+## Deck Structure (planned)
 
-  slides.pdf      ← Preferred (universally viewable)
-  slides.pptx     ← Acceptable
-  slides.key      ← Acceptable (macOS Keynote)
+- **Slide 1:** ColdChain AI Copilot — Error Fellows — IBM Bob AI Hackathon 2026
+- **Slide 2:** The Problem — $500K+ cold-chain cargo lost due to late disruption detection + manual excursion classification
+- **Slide 3:** Solution Architecture — Detect → Assess → Optimise → Act pipeline
+- **Slide 4:** Technical Deep Dive — Deterministic engines + watsonx.ai overlay
+- **Slide 5:** Live Demo Screenshots — LA Port Strike scenario walkthrough
+- **Slide 6:** IBM Technology Integration — How watsonx.ai is used (3 distinct call types)
+- **Slide 7:** Business Impact — Response time, avoided cargo loss, excursion early detection KPIs
+- **Slide 8:** Team Error Fellows
 
-Rename your file to `slides.pdf` (or `slides.pptx`) so the evaluation
-pipeline can locate it reliably.
+## Note to Judges
 
-## Recommended Slide Structure (5–8 slides)
-
-  Slide 1: Title — Project name, team name, track
-  Slide 2: Problem — What problem? Who has it? Why does it matter?
-  Slide 3: Solution — What you built in one clear diagram or screenshot
-  Slide 4: Architecture — How the system works technically
-  Slide 5: Demo / Key Feature — Screenshot or flow of your best feature
-  Slide 6: IBM Technologies — Specifically how you used them
-  Slide 7: Results / Impact — What does success look like? Any metrics?
-  Slide 8: Team — Names, roles, what each person built
-
-## Tips
-
-- Keep slides visual — diagrams beat bullet points
-- One idea per slide
-- Font size minimum 24pt for readability
-- Do not paste large code blocks into slides — reference the repo instead
+A PDF slide deck will be uploaded here before the submission deadline.
+Please see `docs/solution-overview.md` and `docs/architecture.md` for full technical depth in the meantime.

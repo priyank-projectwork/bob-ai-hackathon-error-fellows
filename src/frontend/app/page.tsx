@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [kpis, setKpis] = useState({ activeDisruptions: 0, idleAssets: 0, criticalShipments: 0, openColdChainAlerts: 0 });
   const [alerts, setAlerts] = useState<AlertData[]>([]);
   const [recommendations, setRecommendations] = useState<RecommendationData[]>([]);
+  const [auditEvents, setAuditEvents] = useState<any[]>([]);
   const [shipments, setShipments] = useState<any[]>([]);
   const [fleets, setFleets] = useState<any[]>([]);
   const [disruptions, setDisruptions] = useState<any[]>([]);
@@ -56,13 +57,15 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [locRes, cmdRes] = await Promise.all([
+        const [locRes, cmdRes, auditRes] = await Promise.all([
           fetch("http://127.0.0.1:4000/api/locations"),
-          fetch("http://127.0.0.1:4000/api/v1/command-center")
+          fetch("http://127.0.0.1:4000/api/v1/command-center"),
+          fetch("http://127.0.0.1:4000/api/v1/audit")
         ]);
         
         const locData = await locRes.json();
         const cmdData = await cmdRes.json();
+        const auditData = await auditRes.json();
         
         setShipments(locData.shipments || []);
         setFleets(locData.fleets || []);
@@ -71,6 +74,7 @@ export default function Dashboard() {
         setKpis(cmdData.kpis);
         setAlerts(cmdData.alerts);
         setRecommendations(cmdData.recommendations);
+        setAuditEvents(auditData.events || []);
       } catch (e) {
         console.error("Failed to fetch dashboard data:", e);
       }
@@ -106,6 +110,11 @@ export default function Dashboard() {
 
     socket.on("action.completed", (data: any) => {
       setRecommendations(prev => prev.filter(r => r._id !== data.recommendation._id));
+      // Refresh audit trail
+      fetch("http://127.0.0.1:4000/api/v1/audit")
+        .then(r => r.json())
+        .then(d => setAuditEvents(d.events || []))
+        .catch(() => {});
     });
 
     return () => {
@@ -135,6 +144,18 @@ export default function Dashboard() {
       });
     } catch (err) {
       console.error("Failed to approve action", err);
+    }
+  };
+
+  const rejectRecommendation = async (id: string) => {
+    try {
+      await fetch(`http://127.0.0.1:4000/api/v1/recommendations/${id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Manually rejected by operator" })
+      });
+    } catch (err) {
+      console.error("Failed to reject action", err);
     }
   };
 
@@ -242,10 +263,13 @@ export default function Dashboard() {
                   </div>
                   
                   <div className="flex justify-end gap-3">
-                    <button className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">
+                    <button
+                      onClick={() => rejectRecommendation(rec._id)}
+                      className="px-4 py-2 text-sm text-slate-400 hover:text-red-400 transition-colors border border-transparent hover:border-red-800 rounded-lg"
+                    >
                       Reject
                     </button>
-                    <button 
+                    <button
                       onClick={() => approveRecommendation(rec._id)}
                       className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold transition-colors shadow-lg shadow-indigo-600/20"
                     >
@@ -301,6 +325,37 @@ export default function Dashboard() {
         </div>
       </div>
       <HistoricalAnalytics />
+
+      {/* Audit Trail */}
+      <div className="mt-8 mb-24">
+        <h2 className="text-xl font-semibold mb-4 text-white">Audit Trail</h2>
+        {auditEvents.length === 0 ? (
+          <div className="p-6 border border-slate-800 rounded-xl bg-slate-800/50 text-center text-slate-500 text-sm">
+            No audit events yet. Approve or reject a recommendation to generate an audit record.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {auditEvents.slice(0, 10).map((evt: any, i: number) => (
+              <div key={i} className="flex items-center justify-between p-3 bg-slate-800/60 border border-slate-700 rounded-lg text-sm">
+                <div className="flex items-center gap-3">
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                    evt.eventType === "ApproveRecommendation" ? "bg-green-900/60 text-green-400" :
+                    evt.eventType === "RejectRecommendation" ? "bg-red-900/60 text-red-400" :
+                    "bg-slate-700 text-slate-300"
+                  }`}>{evt.eventType}</span>
+                  <span className="text-slate-400">{evt.entityType}</span>
+                  <span className="text-slate-500 font-mono text-xs">{String(evt.entityId).slice(-8)}</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-slate-500 text-xs">{evt.actorType}</span>
+                  <span className="text-slate-600 text-xs">{new Date(evt.createdAt).toLocaleTimeString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <ChatCopilot />
     </div>
   );
