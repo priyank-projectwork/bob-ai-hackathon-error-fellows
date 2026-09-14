@@ -37,6 +37,11 @@ interface RecommendationData {
   recommendationType: string;
   rationale: string;
   score: number;
+  confidence?: number;
+  evidence?: {
+    alternateRoute?: { route: string; costDelta: number; timeDeltaHours: number; riskScore: number };
+    fleetMatch?: { fleet: { assetId: string; locationName?: string }; matchScore: number; distanceKm: number };
+  };
 }
 
 export default function Dashboard() {
@@ -256,11 +261,35 @@ export default function Dashboard() {
                     </span>
                   </div>
                   
-                  <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 mb-4">
+                  <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 mb-3">
                     <p className="text-sm text-slate-300 leading-relaxed">
                       {rec.rationale}
                     </p>
                   </div>
+
+                  {/* Route + Fleet Evidence */}
+                  {rec.evidence && (
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      {rec.evidence.alternateRoute && (
+                        <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-700 text-xs">
+                          <div className="text-indigo-400 font-bold mb-1">🗺 Alternate Route</div>
+                          <div className="text-slate-300">{rec.evidence.alternateRoute.route}</div>
+                          <div className="text-slate-500 mt-1">
+                            {rec.evidence.alternateRoute.costDelta > 0 ? `+$${rec.evidence.alternateRoute.costDelta}` : "No cost change"} · {rec.evidence.alternateRoute.timeDeltaHours > 0 ? `+${rec.evidence.alternateRoute.timeDeltaHours}h` : rec.evidence.alternateRoute.timeDeltaHours < 0 ? `${rec.evidence.alternateRoute.timeDeltaHours}h` : "Same ETA"} · Risk: {rec.evidence.alternateRoute.riskScore}
+                          </div>
+                        </div>
+                      )}
+                      {rec.evidence.fleetMatch && rec.evidence.fleetMatch.fleet && (
+                        <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-700 text-xs">
+                          <div className="text-green-400 font-bold mb-1">🚛 Fleet Match</div>
+                          <div className="text-slate-300">{rec.evidence.fleetMatch.fleet.assetId}</div>
+                          <div className="text-slate-500 mt-1">
+                            {rec.evidence.fleetMatch.fleet.locationName || "Nearby"} · Match score: {rec.evidence.fleetMatch.matchScore} · {rec.evidence.fleetMatch.distanceKm}km away
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   
                   <div className="flex justify-end gap-3">
                     <button
@@ -288,15 +317,32 @@ export default function Dashboard() {
                 No active incidents.
               </div>
             ) : (
-              alerts.slice(0, 5).map((alert, i) => (
-                <div key={i} className={`p-4 border-l-4 rounded-r-lg bg-slate-800 shadow-sm mb-3 ${alert.severity === 'Critical' ? 'border-red-500' : 'border-orange-500'}`}>
-                  <div className="flex justify-between items-start mb-1">
-                    <h3 className="font-semibold text-white">{alert.title}</h3>
-                    <span className="text-xs text-slate-400">{new Date(alert.createdAt).toLocaleTimeString()}</span>
+              <div className="space-y-3">
+              {alerts.slice(0, 8).map((alert, i) => {
+                const borderClass =
+                  alert.severity === "Critical" ? "border-red-500" :
+                  alert.severity === "High"     ? "border-orange-500" :
+                  alert.severity === "Watch"    ? "border-amber-400" :
+                  "border-slate-600";
+                const badgeClass =
+                  alert.severity === "Critical" ? "bg-red-900/60 text-red-300" :
+                  alert.severity === "High"     ? "bg-orange-900/60 text-orange-300" :
+                  alert.severity === "Watch"    ? "bg-amber-900/60 text-amber-300" :
+                  "bg-slate-700 text-slate-400";
+                return (
+                  <div key={i} className={`p-4 border-l-4 rounded-r-lg bg-slate-800 shadow-sm ${borderClass}`}>
+                    <div className="flex justify-between items-start mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${badgeClass}`}>{alert.severity}</span>
+                        <h3 className="font-semibold text-white text-sm">{alert.title}</h3>
+                      </div>
+                      <span className="text-xs text-slate-500 flex-shrink-0 ml-2">{new Date(alert.createdAt).toLocaleTimeString()}</span>
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed mt-1">{alert.message}</p>
                   </div>
-                  <p className="text-sm text-slate-300">{alert.message}</p>
-                </div>
-              ))
+                );
+              })}
+              </div>
             )}
           </div>
           
@@ -306,21 +352,28 @@ export default function Dashboard() {
         <div>
           <h2 className="text-xl font-semibold mb-4 text-white">Live Sensor Feed</h2>
           <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
-            {logs.map((log, i) => (
-              <div key={i} className="p-3 rounded-lg border flex justify-between items-center bg-slate-800/50 border-slate-700">
-                <div className="flex flex-col">
-                  <span className="text-xs text-slate-400">
-                    {new Date(log.timestamp).toLocaleTimeString()}
-                  </span>
-                  <span className="font-mono text-green-400 font-semibold">
-                    {log.temperatureCelsius}°C
+            {logs.map((log, i) => {
+              const t = log.temperatureCelsius;
+              const isExcursion = t > 8.0;
+              const isWarning   = t > 7.0 && t <= 8.0;
+              const tempColor   = isExcursion ? "text-red-400" : isWarning ? "text-amber-400" : "text-green-400";
+              const borderColor = isExcursion ? "border-red-800 bg-red-950/30" : isWarning ? "border-amber-800 bg-amber-950/20" : "border-slate-700 bg-slate-800/50";
+              return (
+                <div key={i} className={`p-3 rounded-lg border flex justify-between items-center ${borderColor}`}>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-slate-400">
+                      {new Date(log.timestamp).toLocaleTimeString()}
+                    </span>
+                    <span className={`font-mono font-bold ${tempColor}`}>
+                      {t}°C {isExcursion ? "🔴" : isWarning ? "🟡" : ""}
+                    </span>
+                  </div>
+                  <span className="text-xs text-slate-500">
+                    {log.shipmentId}
                   </span>
                 </div>
-                <span className="text-xs text-slate-500">
-                  {log.shipmentId}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

@@ -1,0 +1,23 @@
+{
+  "name": "coldchain-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server exposing ColdChain AI Copilot operational tools to IBM Bob",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "dev": "tsc --watch"
+  },
+  "bin": {
+    "coldchain-mcp-server": "./build/index.js"
+  },
+  "files": ["build"],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.15.0",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

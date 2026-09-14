@@ -33,7 +33,7 @@ app.use(express.json());
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-const MONGO_URI = "mongodb://127.0.0.1:27017/bob-logistics-hackathon";
+const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/bob-logistics-hackathon";
 mongoose.connect(MONGO_URI).then(() => console.log("✅ MongoDB connected"));
 
 // Internal Event Bus (Mocking BullMQ/Redis)
@@ -111,7 +111,6 @@ eventBus.on("disruption.created", async (disruption) => {
 });
 
 eventBus.on("sensor.reading.received", async (log) => {
-  // Validate telemetry + excursion evaluation
   const shipment = await Shipment.findOne({ shipmentId: log.shipmentId });
   if (!shipment) return;
   
@@ -119,12 +118,37 @@ eventBus.on("sensor.reading.received", async (log) => {
   if (!ruleProfile) return;
 
   const openExcursion = await Excursion.findOne({ shipmentId: log.shipmentId, status: "Open" });
-  
   const evalResult = evaluateTelemetry(log, ruleProfile, openExcursion);
+
+  // Intervention window helper
+  const hoursToDelivery = shipment.eta
+    ? Math.max(0, (new Date(shipment.eta) - new Date()) / (1000 * 60 * 60))
+    : null;
+  const interventionNote = hoursToDelivery !== null
+    ? hoursToDelivery > 1
+      ? ` | ⏱ Delivery in ${hoursToDelivery.toFixed(1)}h — intervention window: ${(hoursToDelivery - 1).toFixed(1)}h`
+      : ` | ⚠️ PAST intervention window — shipment arrives in <1h`
+    : "";
+
+  // Rule profile citation for regulatory traceability
+  const profileCitation = `[${ruleProfile.name} v${ruleProfile.version}: ${ruleProfile.minTempC}°C–${ruleProfile.maxTempC}°C]`;
   
-  if (evalResult.action === "OPEN_EXCURSION") {
-    // Call watsonx.ai to classify severity and get the GDP-compliant recommended action
+  if (evalResult.action === "WARNING") {
+    // WARNING was silently dropped before — now emit a Watch-level alert
+    const alert = new Alert({
+      severity: "Watch",
+      entityType: "Excursion",
+      entityId: shipment._id,
+      title: `Cold Chain Warning — ${shipment.shipmentId}`,
+      message: `Temperature ${log.temperatureCelsius}°C approaching limit ${profileCitation}${interventionNote}`
+    });
+    await alert.save();
+    io.emit("telemetry.alert", alert);
+
+  } else if (evalResult.action === "OPEN_EXCURSION") {
+    // Call watsonx.ai to classify severity + GDP-compliant recommended action
     const aiClassification = await classifyExcursion(log);
+    const excursionSeverity = aiClassification.severity || evalResult.severity;
 
     const exc = new Excursion({
       shipmentId: log.shipmentId,
@@ -132,19 +156,49 @@ eventBus.on("sensor.reading.received", async (log) => {
       startedAt: log.timestamp,
       peakTempC: log.temperatureCelsius,
       minTempC: log.temperatureCelsius,
-      severity: aiClassification.severity || evalResult.severity
+      severity: excursionSeverity
     });
     await exc.save();
     
     const alert = new Alert({
-      severity: aiClassification.severity === "Critical" ? "Critical" : "High",
+      severity: excursionSeverity === "Critical" ? "Critical" : "High",
       entityType: "Excursion",
       entityId: exc._id,
-      title: `Cold Chain Breach — ${aiClassification.severity} Excursion Detected`,
-      message: `${aiClassification.recommendedAction} | Shipment: ${shipment.shipmentId} @ ${log.temperatureCelsius}°C`
+      title: `🌡️ ${excursionSeverity} Excursion — ${shipment.shipmentId}`,
+      message: `${aiClassification.recommendedAction} ${profileCitation} @ ${log.temperatureCelsius}°C${interventionNote}`
     });
     await alert.save();
     io.emit("telemetry.alert", alert);
+
+    // ── COMPOUND RISK: if this shipment is also inside an active disruption, escalate ──
+    const activeDisruptions = await Disruption.find({ status: "Active" });
+    for (const disruption of activeDisruptions) {
+      const { calculateDisruptionImpact } = require("./engines/impactEngine");
+      const legs = await require("./models/RouteLeg").find({ _id: { $in: shipment.routeLegs } });
+      const impact = calculateDisruptionImpact(shipment, legs, disruption);
+      if (impact.isImpacted) {
+        // Both a disruption AND cold-chain excursion on the same shipment — escalate
+        const compoundRisk = require("./engines/riskEngine").calculateShipmentRisk(
+          shipment, impact.exposureScore, 24, 80
+        );
+        shipment.riskScore = compoundRisk.score;
+        shipment.riskDrivers = [
+          ...new Set([...compoundRisk.riskDrivers, `Active ${excursionSeverity} excursion`, `${disruption.type} disruption`])
+        ];
+        await shipment.save();
+
+        const compoundAlert = new Alert({
+          severity: "Critical",
+          entityType: "Shipment",
+          entityId: shipment.shipmentId,
+          title: `⚡ DUAL RISK — ${shipment.shipmentId}`,
+          message: `Disruption (${disruption.type}) + ${excursionSeverity} excursion converging. Risk escalated to ${compoundRisk.score}/100 CRITICAL.${interventionNote}`
+        });
+        await compoundAlert.save();
+        io.emit("telemetry.alert", compoundAlert);
+        break; // one compound alert per excursion opening
+      }
+    }
     
   } else if (evalResult.action === "UPDATE_EXCURSION" && openExcursion) {
     openExcursion.peakTempC = Math.max(openExcursion.peakTempC, log.temperatureCelsius);
@@ -152,13 +206,12 @@ eventBus.on("sensor.reading.received", async (log) => {
     
     if (evalResult.severity !== openExcursion.severity) {
       openExcursion.severity = evalResult.severity;
-      
       const alert = new Alert({
         severity: evalResult.severity === "Critical" ? "Critical" : "High",
         entityType: "Excursion",
         entityId: openExcursion._id,
-        title: "Cold Chain Severity Escalated",
-        message: `Excursion severity for ${shipment.shipmentId} escalated to ${evalResult.severity}`
+        title: `🔺 Severity Escalated — ${shipment.shipmentId}`,
+        message: `Excursion escalated to ${evalResult.severity} ${profileCitation}${interventionNote}`
       });
       await alert.save();
       io.emit("telemetry.alert", alert);
@@ -192,10 +245,11 @@ const startSimulation = async () => {
       if (activeShipments.length === 0) return;
       const targetShipment = activeShipments[Math.floor(Math.random() * activeShipments.length)];
 
-      const isSimulatedSpike = Math.random() < 0.25;
+      // 30% spike probability; spikes start above warning band (9.5°C) to guarantee excursion fires
+      const isSimulatedSpike = Math.random() < 0.30;
       const currentTemp = isSimulatedSpike
-        ? +(8.5 + Math.random() * 5.5).toFixed(2)
-        : +(3.0 + Math.random() * 3.5).toFixed(2);
+        ? +(9.5 + Math.random() * 5.0).toFixed(2)   // 9.5–14.5°C — always triggers excursion
+        : +(3.0 + Math.random() * 3.5).toFixed(2);  // 3.0–6.5°C — safe range
 
       const newLog = new SensorLog({
         shipmentId: targetShipment.shipmentId, // Pick a random active shipment

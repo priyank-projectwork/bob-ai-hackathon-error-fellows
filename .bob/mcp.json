@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "coldchain-copilot": {
+      "command": "node",
+      "args": ["D:/MCA/IBM_hackathon/src/mcp-server/build/index.js"],
+      "env": {
+        "COLDCHAIN_API_URL": "http://127.0.0.1:4000"
+      }
+    }
+  }
+}
