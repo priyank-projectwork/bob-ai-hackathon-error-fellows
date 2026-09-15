@@ -153,6 +153,30 @@ const seedData = async () => {
         legEnd:   CITIES.denver,
         etaHours: 14,
         deadlineHours: 24,
+        mode: "Road",
+      },
+
+      // ── LA Port Strike scenario (Ocean Vessel) ──────────────────────────
+      // SHIP-106: Container ship from Shanghai carrying mRNA vaccine cold packs
+      //   → currently mid-Pacific near Hawaii, destination LA Port
+      //   → LA Port Strike means it CANNOT dock → must divert to Long Beach alt
+      //   → best reroute: divert to San Diego or Oakland port
+      {
+        id: "SHIP-MVP-106",
+        cargoType: "Vaccine",
+        cargoValue: 1200000,
+        priority: "Critical",
+        carrier: "Pacific Shipping Lines",
+        origin: "Shanghai",
+        destination: "Los Angeles",
+        // Currently mid-Pacific (near Hawaii longitude)
+        currentLat: 25.80,
+        currentLng: -152.40,
+        legStart: { lat: 31.22, lng: 121.47 }, // Shanghai port
+        legEnd:   CITIES.losAngeles,
+        etaHours: 18,          // 18h to LA — imminent arrival during strike
+        deadlineHours: 24,     // 6h slack before cold-chain deadline
+        mode: "Ocean",
       },
     ];
 
@@ -180,7 +204,7 @@ const seedData = async () => {
       const leg = new RouteLeg({
         shipmentId: shipment._id,
         sequenceNo: 1,
-        mode: "Road",
+        mode: def.mode || "Road",
         origin: def.origin,
         destination: def.destination,
         startLocation: def.legStart,
@@ -198,7 +222,7 @@ const seedData = async () => {
 
     await Shipment.insertMany(shipments);
     await RouteLeg.insertMany(routeLegs);
-    console.log("✅ Seeded 5 Shipments across LA/Chicago/Miami/Denver corridors");
+    console.log("✅ Seeded 6 Shipments across LA/Chicago/Miami/Denver corridors (+ Pacific Ocean vessel)");
 
     // ── Fleet Assets ─────────────────────────────────────────────────────
     const fleetDefs = [
@@ -250,8 +274,8 @@ const seedData = async () => {
     console.log("✅ Seeded 24 hours of Historical Sensor Logs (120 readings across 5 shipments)");
 
     mongoose.connection.close();
-    console.log("✅ Seeding complete — LA/Chicago/Miami/Denver corridors ready");
-    console.log("   → LA Port Strike  : affects SHIP-MVP-101, SHIP-MVP-102");
+    console.log("✅ Seeding complete — all corridors ready");
+    console.log("   → LA Port Strike  : affects SHIP-MVP-101, SHIP-MVP-102, SHIP-MVP-106 (ocean)");
     console.log("   → Chicago Blizzard: affects SHIP-MVP-103");
     console.log("   → Miami Hurricane : affects SHIP-MVP-104");
     console.log("   → SHIP-MVP-105    : unaffected baseline (Denver corridor)");

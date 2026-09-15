@@ -8,6 +8,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
@@ -15,20 +16,35 @@ import {
 const SAFE_MAX = 8;
 const WARN_MIN = 7;
 
+// One colour per shipment — consistent across renders
+const SHIP_COLORS: Record<string, string> = {
+  "SHIP-MVP-101": "#818cf8", // indigo
+  "SHIP-MVP-102": "#34d399", // emerald
+  "SHIP-MVP-103": "#60a5fa", // blue
+  "SHIP-MVP-104": "#f472b6", // pink
+  "SHIP-MVP-105": "#fbbf24", // amber
+  "SHIP-MVP-106": "#fb923c", // orange — ocean vessel
+};
+
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
-  const t = payload[0].value as number;
-  const isExcursion = t > SAFE_MAX;
-  const isWarn      = t > WARN_MIN && t <= SAFE_MAX;
-  const color       = isExcursion ? "#f87171" : isWarn ? "#fbbf24" : "#34d399";
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-xl">
-      <div className="text-slate-500 mb-1">{label}</div>
-      <div className="font-bold tabular-nums" style={{ color }}>
-        {t?.toFixed(2)}°C
-        {isExcursion && <span className="ml-1 text-red-400 font-bold">[EXCURSION]</span>}
-        {isWarn && <span className="ml-1 text-amber-400">[WATCH]</span>}
-      </div>
+    <div className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-xl min-w-[160px]">
+      <div className="text-slate-500 mb-1.5">{label}</div>
+      {payload.map((p: any) => {
+        const t = p.value as number;
+        const isExcursion = t > SAFE_MAX;
+        const isWarn = !isExcursion && t > WARN_MIN;
+        return (
+          <div key={p.dataKey} className="flex items-center justify-between gap-3 mb-0.5">
+            <span className="font-mono text-[9px]" style={{ color: p.color }}>{p.dataKey}</span>
+            <span className="font-bold tabular-nums" style={{ color: isExcursion ? "#f87171" : isWarn ? "#fbbf24" : p.color }}>
+              {t?.toFixed(1)}°C
+              {isExcursion && <span className="ml-1 text-red-400 font-bold">[!]</span>}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -40,23 +56,32 @@ export default function HistoricalAnalytics() {
   useEffect(() => {
     fetch("http://127.0.0.1:4000/api/analytics/temperature")
       .then((res) => res.json())
-      .then((json) => { if (json.data) setData(json.data); })
+      .then((json) => {
+        if (json.data) setData(json.data);
+      })
       .catch((err) => console.error("Error fetching analytics:", err))
       .finally(() => setLoading(false));
   }, []);
+
+  // Derive which shipment keys are present in the data
+  const shipmentKeys = data.length > 0
+    ? Object.keys(data[0]).filter(k => k !== "time")
+    : [];
 
   return (
     <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 overflow-hidden">
       {/* Panel header */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 bg-slate-800/40">
         <div>
-          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">Fleet Temperature Trends</h2>
-          <p className="text-[11px] text-slate-600 mt-0.5">Avg cargo temperature · last 24 h</p>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">Shipment Temperature Trends</h2>
+          <p className="text-[11px] text-slate-600 mt-0.5">
+            Avg cargo temp per shipment · last 24 h · {shipmentKeys.length > 0 ? `${shipmentKeys.length} shipments tracked` : "all active shipments"}
+          </p>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
-            <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t border-dashed border-red-500/60" />Excursion threshold (8°C)</span>
-            <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t border-dashed border-amber-400/50" />Watch threshold (7°C)</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t border-dashed border-red-500/60" />Excursion (8°C)</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t border-dashed border-amber-400/50" />Watch (7°C)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="flex h-2 w-2 relative">
@@ -80,7 +105,7 @@ export default function HistoricalAnalytics() {
             No data available — trigger a scenario to generate telemetry
           </div>
         ) : (
-          <div className="h-64 w-full">
+          <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
@@ -97,36 +122,32 @@ export default function HistoricalAnalytics() {
                   fontSize={10}
                   tickLine={false}
                   axisLine={false}
-                  domain={["auto", "auto"]}
+                  domain={[0, 16]}
                   unit="°C"
                   tick={{ fill: "#475569" }}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                {/* Safe zone boundary */}
-                <ReferenceLine
-                  y={SAFE_MAX}
-                  stroke="#ef4444"
-                  strokeDasharray="4 4"
-                  strokeOpacity={0.5}
-                  strokeWidth={1}
+                <Legend
+                  wrapperStyle={{ fontSize: "9px", paddingTop: "8px" }}
+                  formatter={(value) => <span style={{ color: "#94a3b8", fontSize: "9px" }}>{value}</span>}
                 />
-                <ReferenceLine
-                  y={WARN_MIN}
-                  stroke="#f59e0b"
-                  strokeDasharray="4 4"
-                  strokeOpacity={0.4}
-                  strokeWidth={1}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="temp"
-                  name="Avg Temp"
-                  stroke="#6366f1"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4, fill: "#6366f1", stroke: "#fff", strokeWidth: 2 }}
-                  animationDuration={1200}
-                />
+                {/* Threshold lines */}
+                <ReferenceLine y={SAFE_MAX} stroke="#ef4444" strokeDasharray="4 4" strokeOpacity={0.5} strokeWidth={1} />
+                <ReferenceLine y={WARN_MIN} stroke="#f59e0b" strokeDasharray="4 4" strokeOpacity={0.4} strokeWidth={1} />
+                {/* One line per shipment */}
+                {shipmentKeys.map((key) => (
+                  <Line
+                    key={key}
+                    type="monotone"
+                    dataKey={key}
+                    name={key}
+                    stroke={SHIP_COLORS[key] ?? "#94a3b8"}
+                    strokeWidth={1.5}
+                    dot={false}
+                    activeDot={{ r: 3, strokeWidth: 1 }}
+                    animationDuration={800}
+                  />
+                ))}
               </LineChart>
             </ResponsiveContainer>
           </div>

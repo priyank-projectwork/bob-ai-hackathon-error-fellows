@@ -264,6 +264,7 @@ function RecCard({ rec, onPreview, onReject, onApprove }: {
       {/* Actions */}
       <div className="flex gap-2 px-3.5 pb-3 pt-1.5 border-t border-slate-800/50">
         <button
+          data-tour="see-on-map"
           onClick={onPreview}
           className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-semibold text-sky-400 border border-sky-900/40 bg-sky-950/20 hover:bg-sky-900/30 rounded-lg transition-colors"
           title="See blocked route vs AI reroute on the map"
@@ -338,6 +339,7 @@ export default function Dashboard() {
     "Denver": [39.74, -104.98],  "Dallas": [32.78, -96.80],       "Philadelphia": [39.95, -75.16],
     "St. Louis": [38.63, -90.2], "San Diego": [32.72, -117.16],   "Las Vegas": [36.17, -115.14],
     "Orlando": [28.54, -81.38],  "Atlanta Cold Storage": [33.75, -84.45],
+    "Shanghai": [31.22, 121.47], "Oakland": [37.80, -122.27],
   };
 
   // ── Scenario definitions ───────────────────────────────────────────────────
@@ -884,15 +886,42 @@ export default function Dashboard() {
         {/* ── Incidents + sensor feed ──────────────────────────────────────────── */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
           <div data-tour="incidents">
-            <SectionHeader title="Active Incidents" count={alerts.length} live />
-            {alerts.length === 0
-              ? <div className="flex items-center justify-center h-24 rounded-xl border border-dashed border-slate-800 text-slate-700 text-xs">No active incidents</div>
-              : <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
-                  {alerts.slice(0, 8).map((alert, i) => (
-                    <AlertRow key={alert._id || i} alert={alert} isNew={newAlertIds.has(alert._id)} />
-                  ))}
-                </div>
-            }
+            {/* Show only alerts relevant to the active scenario's affected shipments.
+                When no scenario is active, show the most recent Cold-Chain alerts only. */}
+            {(() => {
+              // Shipment IDs affected by the active scenario
+              const scenarioShipments: Record<string, string[]> = {
+                la:      ["SHIP-MVP-101", "SHIP-MVP-102", "SHIP-MVP-106"],
+                chicago: ["SHIP-MVP-103"],
+                miami:   ["SHIP-MVP-104"],
+              };
+              const activeIds = activeScenario ? (scenarioShipments[activeScenario] ?? []) : [];
+              const filteredAlerts = activeScenario
+                ? alerts.filter(a =>
+                    activeIds.some(id => a.title?.includes(id) || a.message?.includes(id)) ||
+                    a.severity === "Critical"
+                  )
+                : alerts.filter(a => a.entityType === "Excursion" || a.severity === "Critical").slice(0, 8);
+              return (
+                <>
+                  <SectionHeader
+                    title={activeScenario ? `Active Incidents — ${scenarios.find(s => s.key === activeScenario)?.label ?? ""}` : "Active Incidents"}
+                    count={filteredAlerts.length}
+                    live
+                  />
+                  {filteredAlerts.length === 0
+                    ? <div className="flex items-center justify-center h-24 rounded-xl border border-dashed border-slate-800 text-slate-700 text-xs">
+                        {activeScenario ? "No incidents for this scenario yet — pipeline running…" : "No active incidents"}
+                      </div>
+                    : <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
+                        {filteredAlerts.slice(0, 8).map((alert, i) => (
+                          <AlertRow key={alert._id || i} alert={alert} isNew={newAlertIds.has(alert._id)} />
+                        ))}
+                      </div>
+                  }
+                </>
+              );
+            })()}
           </div>
           <div data-tour="sensor-feed">
             <SectionHeader title="Live Sensor Feed" live />
@@ -942,7 +971,7 @@ export default function Dashboard() {
       </main>
 
       <SimToast step={simStep} label={simLabel} />
-      <div data-tour="chat"><ChatCopilot /></div>
+      <ChatCopilot />
       {showTour && (
         <TourOverlay onDone={() => {
           setShowTour(false);

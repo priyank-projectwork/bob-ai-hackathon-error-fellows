@@ -52,6 +52,28 @@ function getRouteAlternatives(origin, destination, activeDisruptions) {
   // ── Los Angeles destination disruption (Port Strike) ─────────────────────
   if ((destination === "Los Angeles" || destination === "LA") && hasLADisruption) {
 
+    // Ocean vessel from Shanghai/Asia — divert to alternate port
+    if (origin === "Shanghai" || origin === "Tokyo" || origin === "Singapore" || origin === "Busan") {
+      return [
+        {
+          route: "Shanghai → Pacific → San Diego Port (Port Diversion — Ocean)",
+          via: ["San Diego"],
+          costDelta: 2200,
+          timeDeltaHours: 8,
+          riskScore: 18,
+          rationale: "Divert vessel from LA Port to San Diego — nearest operational deepwater port. Strike does not affect SD. Adds ~8h steam time and minimal cost increase vs spoilage risk of waiting."
+        },
+        {
+          route: "Shanghai → Pacific → Oakland Port → LA Rail (Northern Port Bypass)",
+          via: ["Oakland", "Los Angeles"],
+          costDelta: 3800,
+          timeDeltaHours: 24,
+          riskScore: 25,
+          rationale: "Divert to Oakland, then rail to LA inland distribution. Fully bypasses LA/Long Beach strike zone. Best option if San Diego pier space is congested."
+        },
+      ].sort((a, b) => a.riskScore - b.riskScore);
+    }
+
     // Routes differ by origin — Critical shipments from NY get air freight as
     // top recommendation; Houston origin gets inland bypass as top choice.
     if (origin === "Houston" || origin === "Dallas") {

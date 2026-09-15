@@ -306,23 +306,30 @@ app.get("/api/v1/command-center", async (req, res) => {
 app.get("/api/analytics/temperature", async (req, res) => {
   try {
     const logs = await SensorLog.find().sort({ timestamp: 1 });
-    
-    // Group logs by hour
+
+    // Group logs by hour × shipment → one column per shipment in the chart
+    // Result: [{ time: "14:00", "SHIP-MVP-101": 4.2, "SHIP-MVP-102": 5.1, … }, …]
     const hourlyData = {};
     for (const log of logs) {
       const hourStr = new Date(log.timestamp).toISOString().slice(0, 13) + ":00:00Z";
-      if (!hourlyData[hourStr]) {
-        hourlyData[hourStr] = { time: new Date(hourStr).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), avgTemp: 0, count: 0 };
-      }
-      hourlyData[hourStr].avgTemp += log.temperatureCelsius;
-      hourlyData[hourStr].count += 1;
+      const timeLabel = new Date(hourStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      if (!hourlyData[hourStr]) hourlyData[hourStr] = { time: timeLabel };
+      const bucket = hourlyData[hourStr];
+      const key = log.shipmentId;
+      if (!bucket[key]) bucket[key] = { sum: 0, count: 0 };
+      bucket[key].sum   += log.temperatureCelsius;
+      bucket[key].count += 1;
     }
-    
-    const chartData = Object.values(hourlyData).map(d => ({
-      time: d.time,
-      temp: parseFloat((d.avgTemp / d.count).toFixed(2))
-    }));
-    
+
+    const chartData = Object.values(hourlyData).map((bucket) => {
+      const row = { time: bucket.time };
+      for (const [k, v] of Object.entries(bucket)) {
+        if (k === "time") continue;
+        row[k] = parseFloat((v.sum / v.count).toFixed(2));
+      }
+      return row;
+    });
+
     res.json({ data: chartData });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch analytics" });
