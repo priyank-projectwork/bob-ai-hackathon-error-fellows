@@ -5,6 +5,7 @@ import { io } from "socket.io-client";
 import dynamic from "next/dynamic";
 import ChatCopilot from "../components/ChatCopilot";
 import HistoricalAnalytics from "../components/HistoricalAnalytics";
+import TourOverlay from "../components/TourOverlay";
 
 const LiveMap = dynamic(() => import("../components/LiveMap"), {
   ssr: false,
@@ -304,6 +305,8 @@ export default function Dashboard() {
   const [newLogIds, setNewLogIds]       = useState<Set<string>>(new Set());
   const [isConnected, setIsConnected]   = useState(false);
   const [isResetting, setIsResetting]   = useState(false);
+  // Tour — shown once on first visit, dismissable via localStorage
+  const [showTour, setShowTour] = useState(false);
 
   // Simulation state — which scenario is currently running
   const [activeScenario, setActiveScenario] = useState<string | null>(null); // key of the live disruption
@@ -390,19 +393,18 @@ export default function Dashboard() {
       setAlerts(cmd.alerts           || []);
       setRecs(cmd.recommendations    || []);
       setAudit(audit.events          || []);
-      // Restore which scenario card is "active" from DB state
-      const activeD = activeDis[0];
-      if (activeD) {
-        const match = scenarios.find(s => s.type === activeD.type);
-        if (match) setActiveScenario(match.key);
-      } else {
-        setActiveScenario(null);
-      }
+      // Never restore a stale active scenario on page load — always start clean.
+      // The user must explicitly click a card to activate a scenario.
+      setActiveScenario(null);
     } catch (e) { console.error("fetch failed", e); }
   };
 
   useEffect(() => {
     fetchAll();
+    // Show tour on first visit; localStorage key lets user dismiss permanently
+    if (typeof window !== "undefined" && !localStorage.getItem("cc_tour_done")) {
+      setTimeout(() => setShowTour(true), 800); // slight delay so the page renders first
+    }
 
     const socket = io("http://127.0.0.1:4000");
     socket.on("connect",    () => setIsConnected(true));
@@ -655,6 +657,18 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             <LiveClock />
             <div className="h-4 border-l border-slate-800" />
+            {/* Tour launcher button */}
+            <button
+              onClick={() => setShowTour(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-blue-400 border border-slate-800 hover:border-blue-800/60 rounded-lg transition-colors"
+              title="Take a guided tour"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+              </svg>
+              Tour
+            </button>
+            <div className="h-4 border-l border-slate-800" />
             <div className="flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${isConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
               <span className={`text-[11px] font-semibold ${isConnected ? "text-emerald-400" : "text-red-400"}`}>
@@ -669,7 +683,7 @@ export default function Dashboard() {
       <main className="max-w-[1600px] mx-auto px-5 py-6 space-y-6">
 
         {/* ── KPI row ─────────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div data-tour="kpis" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { label: "Active Disruptions",  value: disruptions.filter(d => d.status === "Active" || !d.status).length, color: "text-amber-400" },
             { label: "Idle Fleet Assets",   value: kpis.idleAssets,          color: "text-emerald-400" },
@@ -691,7 +705,7 @@ export default function Dashboard() {
                active   = the current live disruption, coloured, pulsing dot
                others   = while one is active, other two are dim/unclickable
         ──────────────────────────────────────────────────────────────────────── */}
-        <div>
+        <div data-tour="scenarios">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Simulate Scenario</span>
@@ -751,24 +765,40 @@ export default function Dashboard() {
 
                   {/* Label */}
                   <div className={`text-[13px] font-bold mb-1 pr-12 ${isRunning || isActive ? "" : "text-slate-400"}`}>
-                    {isRunning ? `${s.label}…` : s.label}
+                    {s.label}
                   </div>
 
-                  {/* Description */}
-                  <div className="text-[11px] text-slate-600 leading-snug">{s.description}</div>
-
-                  {/* Progress bar when running */}
-                  {isRunning && simStep >= 0 && (
-                    <div className="mt-3 h-0.5 bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${((simStep + 1) / SIM_STEPS.length) * 100}%`,
-                          background: "currentColor",
-                          opacity: 0.6,
-                        }}
-                      />
+                  {/* Description OR inline pipeline steps while running */}
+                  {isRunning ? (
+                    <div className="mt-2 space-y-1">
+                      {SIM_STEPS.map((stepLabel, idx) => {
+                        const done    = simStep > idx;
+                        const current = simStep === idx;
+                        return (
+                          <div key={idx} className={`flex items-center gap-2 text-[10px] transition-opacity duration-300 ${idx > simStep ? "opacity-25" : "opacity-100"}`}>
+                            <span className="flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center">
+                              {done
+                                ? <span className="text-emerald-400 text-[11px] font-bold">✓</span>
+                                : current
+                                ? <span className="w-2.5 h-2.5 rounded-full border-2 border-current border-t-transparent animate-spin block" />
+                                : <span className="w-1.5 h-1.5 rounded-full bg-current opacity-30 block" />}
+                            </span>
+                            <span className={done ? "text-emerald-400/70 line-through" : current ? "text-current font-semibold" : "text-slate-600"}>
+                              {stepLabel}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {/* Progress bar */}
+                      <div className="mt-2 h-px bg-slate-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-700"
+                          style={{ width: `${((simStep + 1) / SIM_STEPS.length) * 100}%`, background: "currentColor", opacity: 0.5 }}
+                        />
+                      </div>
                     </div>
+                  ) : (
+                    <div className="text-[11px] text-slate-600 leading-snug">{s.description}</div>
                   )}
                 </button>
               );
@@ -782,7 +812,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
 
           {/* Map */}
-          <div className="xl:col-span-8 rounded-xl overflow-hidden border border-slate-800/60">
+          <div data-tour="map" className="xl:col-span-8 rounded-xl overflow-hidden border border-slate-800/60">
             <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800/60 bg-slate-900/30">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Live Fleet & Disruption Map</span>
               <div className="flex items-center gap-3 text-[9px] font-bold uppercase tracking-widest text-slate-700">
@@ -807,7 +837,7 @@ export default function Dashboard() {
           </div>
 
           {/* AI Action Center */}
-          <div className="xl:col-span-4 flex flex-col">
+          <div data-tour="action-center" className="xl:col-span-4 flex flex-col">
             <SectionHeader title="AI Action Center" count={pendingRecs.length} />
 
             {pendingRecs.length === 0 ? (
@@ -853,7 +883,7 @@ export default function Dashboard() {
 
         {/* ── Incidents + sensor feed ──────────────────────────────────────────── */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          <div>
+          <div data-tour="incidents">
             <SectionHeader title="Active Incidents" count={alerts.length} live />
             {alerts.length === 0
               ? <div className="flex items-center justify-center h-24 rounded-xl border border-dashed border-slate-800 text-slate-700 text-xs">No active incidents</div>
@@ -864,7 +894,7 @@ export default function Dashboard() {
                 </div>
             }
           </div>
-          <div>
+          <div data-tour="sensor-feed">
             <SectionHeader title="Live Sensor Feed" live />
             <div className="space-y-1 max-h-[280px] overflow-y-auto">
               {logs.length === 0
@@ -885,7 +915,7 @@ export default function Dashboard() {
         <HistoricalAnalytics />
 
         {/* ── Audit trail ──────────────────────────────────────────────────────── */}
-        <div className="pb-24">
+        <div data-tour="audit" className="pb-24">
           <SectionHeader title="Audit Trail" count={auditEvents.length} />
           {auditEvents.length === 0
             ? <div className="flex items-center justify-center h-14 rounded-xl border border-dashed border-slate-800 text-slate-700 text-[11px]">
@@ -912,7 +942,13 @@ export default function Dashboard() {
       </main>
 
       <SimToast step={simStep} label={simLabel} />
-      <ChatCopilot />
+      <div data-tour="chat"><ChatCopilot /></div>
+      {showTour && (
+        <TourOverlay onDone={() => {
+          setShowTour(false);
+          if (typeof window !== "undefined") localStorage.setItem("cc_tour_done", "1");
+        }} />
+      )}
     </div>
   );
 }
