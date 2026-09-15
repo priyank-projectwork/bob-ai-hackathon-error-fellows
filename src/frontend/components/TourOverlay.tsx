@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 
 // ── Tour step definitions ─────────────────────────────────────────────────────
+// contextual: true → element may not be in DOM yet; show centred hint instead of blank overlay
 export const TOUR_STEPS = [
   {
     target: "[data-tour='kpis']",
@@ -30,15 +31,19 @@ export const TOUR_STEPS = [
   },
   {
     target: "[data-tour='see-on-map']",
-    title: "See on Map",
-    body: "Click this button on any recommendation to instantly visualise the full route comparison on the map — the blocked path in red and the AI reroute in green appear together, with a cyan line showing which idle truck is being dispatched to cover the gap.",
+    title: "\"See on Map\" Button",
+    body: "Each recommendation card has a sky-blue 'See on Map' button. Click it to instantly paint the full route comparison on the map — blocked path in red, AI reroute in green, and a cyan line showing which idle truck is dispatched.",
     placement: "top" as const,
+    contextual: true,
+    hint: "Run a disruption scenario first, then click \"See on Map\" on a recommendation card to activate this feature.",
   },
   {
     target: "[data-tour='map-comparison']",
     title: "Before / After Route Comparison",
-    body: "This panel tells the full story: PROBLEM shows what was blocked and why, AI SOLUTION shows the new corridor with concrete cost and time deltas. The red dashed line on the map is the failed route; the animated green line is the AI-optimised reroute.",
+    body: "This panel appears on the map after clicking 'See on Map'. It tells the full story: PROBLEM (why the original route failed) and AI SOLUTION (the new corridor with cost and time deltas). Red dashed = blocked route, animated green = AI reroute.",
     placement: "right" as const,
+    contextual: true,
+    hint: "This panel appears on the map after you click 'See on Map' on any recommendation. Try it after closing the tour!",
   },
   {
     target: "[data-tour='incidents']",
@@ -131,12 +136,22 @@ export default function TourOverlay({ onDone }: { onDone: () => void }) {
 
   if (!mounted) return null;
 
-  // ── Tooltip position calculation ─────────────────────────────────────────
-  let tipTop = 0, tipLeft = 0;
   const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
 
-  if (rect) {
+  // ── Contextual step: element not yet in DOM ───────────────────────────────
+  // Show a centred tooltip with a hint instead of a blank invisible overlay
+  const isContextual = (current as { contextual?: boolean }).contextual === true;
+  const isMissing    = isContextual && !rect;
+
+  // ── Tooltip position calculation ─────────────────────────────────────────
+  let tipTop = 0, tipLeft = 0;
+
+  if (isMissing) {
+    // Centre the tooltip in the viewport
+    tipTop  = vh / 2 - 120;
+    tipLeft = vw / 2 - TIP_W / 2;
+  } else if (rect) {
     const p = current.placement;
     if (p === "bottom") {
       tipTop  = rect.bottom + PAD + 8;
@@ -153,12 +168,12 @@ export default function TourOverlay({ onDone }: { onDone: () => void }) {
     }
     // Clamp to viewport
     tipLeft = Math.max(12, Math.min(tipLeft, vw - TIP_W - 12));
-    tipTop  = Math.max(12, Math.min(tipTop, vh - 200));
+    tipTop  = Math.max(12, Math.min(tipTop, vh - 260));
   }
 
   // ── Cutout SVG clip path ──────────────────────────────────────────────────
   // We render a full-screen dark overlay with a transparent hole cut around the target
-  const cutout = rect
+  const cutout = (!isMissing && rect)
     ? `M0,0 H${vw} V${vh} H0 Z M${rect.left - PAD},${rect.top - PAD} H${rect.right + PAD} V${rect.bottom + PAD} H${rect.left - PAD} Z`
     : `M0,0 H${vw} V${vh} H0 Z`;
 
@@ -211,6 +226,14 @@ export default function TourOverlay({ onDone }: { onDone: () => void }) {
           <div className="px-4 py-3">
             <div className="text-[13px] font-bold text-white mb-1.5">{current.title}</div>
             <div className="text-[11px] text-slate-400 leading-relaxed">{current.body}</div>
+            {isMissing && (current as { hint?: string }).hint && (
+              <div className="mt-2.5 flex items-start gap-2 bg-amber-500/10 border border-amber-500/25 rounded-lg px-2.5 py-2">
+                <span className="text-amber-400 text-[12px] flex-shrink-0 mt-px">⚡</span>
+                <span className="text-[10px] text-amber-300/80 leading-relaxed">
+                  {(current as { hint?: string }).hint}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Progress dots */}
