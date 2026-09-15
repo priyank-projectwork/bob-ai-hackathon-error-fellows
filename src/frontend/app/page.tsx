@@ -49,7 +49,7 @@ interface RecommendationData {
   confidence?: number;
   status?: "Pending" | "Approved" | "Rejected" | "Superseded";
   evidence?: {
-    alternateRoute?: { route: string; costDelta: number; timeDeltaHours: number; riskScore: number; via?: string[] };
+    alternateRoute?: { route: string; costDelta: number; timeDeltaHours: number; riskScore: number; via?: string[]; modes?: string[] };
     fleetMatch?: { fleet: { assetId: string; locationName?: string }; matchScore: number; distanceKm: number };
   };
 }
@@ -171,48 +171,53 @@ function SimToast({ step, label }: { step: number; label: string }) {
 
 // ── Recommendation card with inline expand ────────────────────────────────────
 
-// Detect transport mode from route string and return icon + label
-function getModeInfo(routeStr: string = "", origin: string = ""): { icon: React.ReactNode; label: string; color: string } {
+// Detect transport mode(s) from route string — returns primary mode info + multimodal flag
+function getModeInfo(routeStr: string = "", origin: string = "", modes?: string[]): {
+  icon: React.ReactNode; label: string; color: string; isMultiModal: boolean
+} {
   const r = routeStr.toLowerCase();
-  if (r.includes("air") || r.includes("freight") && r.includes("las vegas"))
+  const isMultiModal = !!(modes && modes.length > 1);
+
+  // Multi-modal: show combined icon badge
+  if (isMultiModal) {
+    const hasAir = modes!.includes("Air");
+    const hasSea = modes!.includes("Sea");
     return {
       icon: (
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/>
-        </svg>
+        <span className="flex items-center gap-0.5">
+          {hasSea && <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2 20a2 2 0 002 2h16a2 2 0 002-2M5 20V10h14v10M8 10V6l4-4 4 4v4"/></svg>}
+          {hasAir && <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19.5 2.5S18 2 16.5 3.5L13 7 4.8 5.2A1 1 0 004 6l3 4.5-4 4V16l4-1 4 3h2l1-5.2z"/></svg>}
+          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8zM5.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM18.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/></svg>
+        </span>
       ),
-      label: "Air Freight", color: "text-sky-400",
+      label: modes!.join(" + "), color: "text-violet-400", isMultiModal: true,
     };
-  if (r.includes("ocean") || r.includes("sea") || r.includes("port") || r.includes("pacific") || r.includes("vessel") ||
+  }
+
+  if (r.includes("[air]") || r.includes("air freight") || (r.includes("air") && r.includes("lax")))
+    return { icon: (<svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19.5 2.5S18 2 16.5 3.5L13 7 4.8 5.2A1 1 0 004 6l3 4.5-4 4V16l4-1 4 3h2l1-5.2z"/></svg>),
+      label: "Air Freight", color: "text-sky-400", isMultiModal: false };
+
+  if (r.includes("[sea]") || r.includes("ocean") || r.includes("pacific") || r.includes("vessel") ||
       origin === "Shanghai" || origin === "Tokyo" || origin === "Singapore" || origin === "Busan")
-    return {
-      icon: (
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4M4 12l4-4M4 12l4 4M20 12l-4-4M20 12l-4 4"/>
-        </svg>
-      ),
-      label: "Ocean Vessel", color: "text-blue-400",
-    };
-  return {
-    icon: (
-      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <rect x="1" y="3" width="15" height="13" rx="1"/>
-        <path d="M16 8h4l3 5v3h-7V8zM5.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM18.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/>
-      </svg>
-    ),
-    label: "Road Freight", color: "text-emerald-400",
-  };
+    return { icon: (<svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2 20a2 2 0 002 2h16a2 2 0 002-2M5 20V10h14v10M8 10V6l4-4 4 4v4"/></svg>),
+      label: "Ocean Vessel", color: "text-blue-400", isMultiModal: false };
+
+  return { icon: (<svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8zM5.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM18.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/></svg>),
+    label: "Road Freight", color: "text-emerald-400", isMultiModal: false };
 }
 
 // Build a readable "Origin → ... → Destination" chain from the full route string
 function RouteChain({ route, color = "text-slate-300" }: { route: string; color?: string }) {
   const parts = route.split("→").map(s => s.trim()).filter(Boolean);
   return (
-    <span className="flex flex-wrap items-center gap-0.5">
+    <span className="flex flex-wrap items-center gap-0.5 leading-snug">
       {parts.map((p, i) => (
         <span key={i} className="flex items-center gap-0.5">
-          <span className={`text-[9px] font-medium ${color}`}>{p}</span>
-          {i < parts.length - 1 && <span className="text-slate-700 text-[8px]">›</span>}
+          <span className={`text-[9px] font-semibold ${color}`}>{p}</span>
+          {i < parts.length - 1 && (
+            <span className="text-slate-600 text-[9px] font-bold mx-0.5">→</span>
+          )}
         </span>
       ))}
     </span>
@@ -247,7 +252,7 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
 
   // Transport mode for BEFORE (original) and AFTER (AI fix)
   const beforeMode = getModeInfo(beforeRoute, origin);
-  const afterMode  = getModeInfo(alt?.route ?? "", origin);
+  const afterMode  = getModeInfo(alt?.route ?? "", origin, alt?.modes);
 
   // Priority badge colour
   const priorityColor = priority === "Critical" ? "text-red-400 bg-red-500/10 ring-1 ring-red-500/20"
@@ -288,9 +293,6 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
         <div className="flex-shrink-0 flex items-center gap-1.5">
           <span className="text-[9px] text-slate-600">Risk</span>
           <ScoreMeter value={rec.score} />
-          <span className="text-[10px] font-bold tabular-nums" style={{ color: rec.score >= 75 ? "#f87171" : rec.score >= 50 ? "#fb923c" : "#fbbf24" }}>
-            {rec.score}
-          </span>
         </div>
       </div>
 
@@ -324,6 +326,9 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
                 {afterMode.icon}
                 <span className="text-[8px] font-semibold">{afterMode.label}</span>
               </span>
+              {afterMode.isMultiModal && (
+                <span className="text-[7px] font-bold uppercase tracking-widest text-violet-400 bg-violet-500/10 px-1 py-0.5 rounded border border-violet-500/20">Multi-Modal</span>
+              )}
               <div className="ml-auto flex items-center gap-2 text-[9px] flex-shrink-0">
                 <span className={alt.costDelta > 0 ? "text-amber-400 font-semibold" : "text-emerald-400"}>
                   {alt.costDelta > 0 ? `+$${alt.costDelta.toLocaleString()}` : "no extra cost"}
@@ -458,6 +463,9 @@ export default function Dashboard() {
     "St. Louis": [38.63, -90.2], "San Diego": [32.72, -117.16],   "Las Vegas": [36.17, -115.14],
     "Orlando": [28.54, -81.38],  "Atlanta Cold Storage": [33.75, -84.45],
     "Shanghai": [31.22, 121.47], "Oakland": [37.80, -122.27],
+    "JFK Airport": [40.64, -73.78], "LAX Airport": [33.94, -118.41],
+    "San Antonio": [29.42, -98.49], "El Paso": [31.76, -106.49],
+    "Albuquerque": [35.08, -106.65], "Phoenix": [33.45, -112.07],
   };
 
   // ── Scenario definitions ───────────────────────────────────────────────────
