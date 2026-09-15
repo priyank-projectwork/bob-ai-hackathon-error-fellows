@@ -180,89 +180,97 @@ function RecCard({ rec, onPreview, onReject, onApprove }: {
   const [expanded, setExpanded] = useState(false);
   const alt   = rec.evidence?.alternateRoute;
   const fleet = rec.evidence?.fleetMatch;
+
+  // Derive a short disruption label from the rec type / rationale
+  const disruptionHint = rec.recommendationType?.toLowerCase().includes("reroute")
+    ? "disruption blocks this route"
+    : rec.recommendationType?.toLowerCase().includes("fleet")
+    ? "fleet reassignment needed"
+    : "action required";
+
   return (
     <div className="rounded-xl border border-slate-700/40 bg-slate-800/30 overflow-hidden anim-slide-down">
-      {/* Header */}
-      <div className="flex items-start justify-between px-3.5 pt-3 pb-2 border-b border-slate-700/30 gap-2">
+
+      {/* ── Problem banner: what's wrong ──────────────────────────────────── */}
+      <div className="flex items-center gap-2 px-3.5 pt-2.5 pb-2 border-b border-red-900/20 bg-red-950/10">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+        <span className="text-[9px] font-bold uppercase tracking-wider text-red-400/80">{disruptionHint}</span>
+        <span className="ml-auto text-[9px] font-mono text-slate-600">{rec.entityId}</span>
+      </div>
+
+      {/* ── Header: shipment + risk score ──────────────────────────────────── */}
+      <div className="flex items-center justify-between px-3.5 pt-2 pb-1.5 gap-2">
         <div className="min-w-0">
           <div className="text-[9px] font-bold uppercase tracking-widest text-indigo-400 mb-0.5">{rec.recommendationType}</div>
-          <div className="text-[13px] font-black text-white">{rec.entityId}</div>
         </div>
-        <div className="flex-shrink-0">
-          <div className="text-[9px] text-slate-600 mb-1 text-right">Risk</div>
+        <div className="flex-shrink-0 flex items-center gap-1.5">
+          <span className="text-[9px] text-slate-600">Risk</span>
           <ScoreMeter value={rec.score} />
         </div>
       </div>
 
-      {/* Rationale — 2 lines collapsed, full when expanded */}
-      <div className="px-3.5 pt-2 pb-1">
-        <p className={`text-[11px] text-slate-400 leading-relaxed ${expanded ? "" : "line-clamp-2"}`}>
+      {/* ── Route comparison strip (always visible) ────────────────────────── */}
+      {alt && (
+        <div className="mx-3.5 mb-2 rounded-lg overflow-hidden border border-slate-800/60">
+          {/* BEFORE row */}
+          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-red-950/20 border-b border-red-900/20">
+            <span className="text-[8px] font-bold text-red-400 bg-red-500/10 px-1 py-0.5 rounded flex-shrink-0">BEFORE</span>
+            <span className="text-[9px] text-red-300/70 truncate">
+              Direct route — ✕ blocked by active disruption
+            </span>
+          </div>
+          {/* AFTER row */}
+          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-emerald-950/10">
+            <span className="text-[8px] font-bold text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded flex-shrink-0">AI FIX</span>
+            <span className="text-[9px] text-emerald-300/80 truncate flex-1">{alt.route.split("→").slice(-2).join("→ ").trim()}</span>
+            <div className="flex items-center gap-2 flex-shrink-0 text-[9px]">
+              <span className={alt.costDelta > 0 ? "text-amber-400" : "text-emerald-400"}>
+                {alt.costDelta > 0 ? `+$${alt.costDelta.toLocaleString()}` : "same cost"}
+              </span>
+              <span className={alt.timeDeltaHours > 0 ? "text-amber-400" : "text-emerald-400"}>
+                {alt.timeDeltaHours > 0 ? `+${alt.timeDeltaHours}h` : `${alt.timeDeltaHours}h`}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fleet match strip */}
+      {fleet && !alt && (
+        <div className="mx-3.5 mb-2 rounded-lg border border-slate-800/60 px-2.5 py-1.5 bg-emerald-950/10 flex items-center gap-2">
+          <span className="text-[8px] font-bold text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded flex-shrink-0">FLEET</span>
+          <span className="text-[9px] text-emerald-300/80 font-semibold">{fleet.fleet.assetId}</span>
+          {fleet.fleet.locationName && <span className="text-[9px] text-slate-600 truncate">{fleet.fleet.locationName}</span>}
+          <span className="text-[9px] text-slate-600 ml-auto flex-shrink-0">{fleet.distanceKm}km</span>
+        </div>
+      )}
+
+      {/* Rationale — collapsible */}
+      <div className="px-3.5 pb-1.5">
+        <p className={`text-[10px] text-slate-500 leading-relaxed ${expanded ? "" : "line-clamp-2"}`}>
           {rec.rationale}
         </p>
-        {rec.rationale.length > 120 && (
+        {rec.rationale.length > 100 && (
           <button
             onClick={() => setExpanded(e => !e)}
-            className="text-[10px] text-slate-600 hover:text-slate-400 mt-0.5 transition-colors"
+            className="text-[9px] text-slate-700 hover:text-slate-400 mt-0.5 transition-colors"
           >
-            {expanded ? "show less" : "show more"}
+            {expanded ? "show less ↑" : "full rationale ↓"}
           </button>
         )}
       </div>
 
-      {/* Evidence — only shown when expanded */}
-      {expanded && (alt || fleet) && (
-        <div className="mx-3.5 mb-2 grid grid-cols-2 gap-2">
-          {alt && (
-            <div className="bg-[#060b14] rounded-lg border border-slate-800 px-2.5 py-2">
-              <div className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider mb-1">Alt Route</div>
-              <div className="text-[10px] text-slate-300 leading-snug mb-1.5">{alt.route}</div>
-              <div className="space-y-0.5 text-[10px]">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Cost</span>
-                  <span className={alt.costDelta > 0 ? "text-amber-400" : "text-emerald-400"}>
-                    {alt.costDelta === 0 ? "—" : alt.costDelta > 0 ? `+$${alt.costDelta.toLocaleString()}` : `-$${Math.abs(alt.costDelta).toLocaleString()}`}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Time</span>
-                  <span className={alt.timeDeltaHours > 0 ? "text-amber-400" : "text-emerald-400"}>
-                    {alt.timeDeltaHours === 0 ? "Same ETA" : alt.timeDeltaHours > 0 ? `+${alt.timeDeltaHours}h` : `${alt.timeDeltaHours}h`}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-          {fleet && (
-            <div className="bg-[#060b14] rounded-lg border border-slate-800 px-2.5 py-2">
-              <div className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider mb-1">Fleet</div>
-              <div className="text-[11px] font-bold text-white mb-0.5">{fleet.fleet.assetId}</div>
-              {fleet.fleet.locationName && <div className="text-[10px] text-slate-500 mb-1">{fleet.fleet.locationName}</div>}
-              <div className="text-[10px] text-slate-600">{fleet.distanceKm} km away</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Compact evidence strip when collapsed */}
-      {!expanded && (alt || fleet) && (
-        <div className="flex gap-3 px-3.5 pb-2 text-[10px]">
-          {alt && <span className="text-indigo-400/70 truncate">→ {alt.route.split("→").pop()?.trim()}</span>}
-          {fleet && <span className="text-emerald-400/70 flex-shrink-0">{fleet.fleet.assetId}</span>}
-        </div>
-      )}
-
       {/* Actions */}
-      <div className="flex gap-2 px-3.5 pb-3 pt-1 border-t border-slate-800/50">
-        {/* "View on map" — previews route path, flies map, no commit */}
+      <div className="flex gap-2 px-3.5 pb-3 pt-1.5 border-t border-slate-800/50">
         <button
           onClick={onPreview}
-          className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold text-slate-500 hover:text-sky-400 border border-slate-800 hover:border-sky-900/50 rounded-lg transition-colors"
-          title="Preview route on map"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-semibold text-sky-400 border border-sky-900/40 bg-sky-950/20 hover:bg-sky-900/30 rounded-lg transition-colors"
+          title="See blocked route vs AI reroute on the map"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="M1 6s4-4 11-4 11 4 11 4-4 4-11 4-11-4-11-4z"/><circle cx="12" cy="6" r="2"/>
+            <path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0M12 8v4l3 3"/>
           </svg>
-          Map
+          See on Map
         </button>
         <button
           onClick={onReject}
@@ -310,6 +318,14 @@ export default function Dashboard() {
   const [rerouteShipmentId, setRerouteShipmentId] = useState<string | null>(null);
   const [reroutePath, setReroutePath]   = useState<[number, number][]>([]);
   const [rerouteLabels, setRerouteLabels] = useState<string[]>([]);
+  // The ORIGINAL (blocked) route shown in red alongside the AI reroute
+  const [blockedPath, setBlockedPath]   = useState<[number, number][]>([]);
+  // Rec metadata for the "Before vs After" map panel
+  const [activeRecMeta, setActiveRecMeta] = useState<{
+    shipmentId: string; cargo: string; origin: string; destination: string;
+    disruption: string;
+    costDelta: number; timeDeltaHours: number; riskScore: number; routeLabel: string;
+  } | null>(null);
 
   const CITY_COORDS: Record<string, [number, number]> = {
     "New York": [40.71, -74.01], "Los Angeles": [34.05, -118.24], "Chicago": [41.88, -87.63],
@@ -418,6 +434,8 @@ export default function Dashboard() {
       setRerouteShipmentId(null);
       setReroutePath([]);
       setRerouteLabels([]);
+      setBlockedPath([]);
+      setActiveRecMeta(null);
     });
 
     socket.on("disruption.updated", (data: any) => {
@@ -461,6 +479,8 @@ export default function Dashboard() {
     setRerouteShipmentId(null);
     setReroutePath([]);
     setRerouteLabels([]);
+    setBlockedPath([]);
+    setActiveRecMeta(null);
 
     setSimKey(key);
     setSimLabel(scenarios.find(s => s.key === key)?.label ?? key);
@@ -496,51 +516,81 @@ export default function Dashboard() {
     setRerouteShipmentId(null);
     setReroutePath([]);
     setRerouteLabels([]);
+    setBlockedPath([]);
+    setActiveRecMeta(null);
     await fetch("http://127.0.0.1:4000/api/v1/reset", { method: "POST" }).catch(() => {});
     // Re-fetch to sync KPIs / shipments from DB
     await fetchAll();
     setIsResetting(false);
   };
 
+  // Helper: build the blocked (original) path for a shipment: currentLocation → destination
+  const buildBlockedPath = (ship: any): [number, number][] => {
+    if (!ship) return [];
+    const startPt = ship.currentLocation ? [ship.currentLocation.lat, ship.currentLocation.lng] as [number, number] : null;
+    const destPt  = ship.destination ? CITY_COORDS[ship.destination] ?? null : null;
+    if (startPt && destPt) return [startPt, destPt];
+    return startPt ? [startPt] : [];
+  };
+
+  // Helper: build reroute path + labels + recMeta from a recommendation
+  const buildRerouteData = (rec: RecommendationData) => {
+    const alt      = rec.evidence?.alternateRoute;
+    const ship     = shipments.find(f => f.shipmentId === rec.entityId);
+    const destName = ship?.destination ?? "";
+    if (!alt?.via?.length) return null;
+
+    const startPt: [number, number] | null = ship?.currentLocation
+      ? [ship.currentLocation.lat, ship.currentLocation.lng] : null;
+    const viaPts = (alt.via as string[]).map(v => CITY_COORDS[v]).filter(Boolean) as [number, number][];
+    const destPt = destName ? CITY_COORDS[destName] ?? null : null;
+
+    const fullPath: [number, number][] = [
+      ...(startPt ? [startPt] : []),
+      ...viaPts,
+      ...(destPt ? [destPt] : []),
+    ];
+    const labels = [rec.entityId, ...(alt.via as string[]), ...(destName ? [destName] : [])];
+
+    const disruption = disruptions[0];
+    const disruptionLabel = disruption?.title ?? disruption?.type ?? "Active Disruption";
+
+    const meta = {
+      shipmentId:    rec.entityId,
+      cargo:         ship?.cargoType ?? "Cargo",
+      origin:        ship?.origin ?? "",
+      destination:   destName,
+      disruption:    disruptionLabel,
+      costDelta:     alt.costDelta,
+      timeDeltaHours: alt.timeDeltaHours,
+      riskScore:     alt.riskScore,
+      routeLabel:    alt.route,
+    };
+
+    return { fullPath, labels, blockedPath: buildBlockedPath(ship), meta };
+  };
+
   const approveRec = async (rec: RecommendationData) => {
     try {
       await fetch(`http://127.0.0.1:4000/api/v1/recommendations/${rec._id}/approve`, { method: "POST" });
-      const alt = rec.evidence?.alternateRoute;
-      const fleetMatch = rec.evidence?.fleetMatch;
-      if (alt?.via?.length) {
-        const ship = shipments.find(f => f.shipmentId === rec.entityId);
-        const destName = ship?.destination;
-
-        const startPt: [number, number] | null = ship?.currentLocation
-          ? [ship.currentLocation.lat, ship.currentLocation.lng]
-          : null;
-        const viaPts = (alt.via as string[]).map(v => CITY_COORDS[v]).filter(Boolean) as [number, number][];
-        const destPt = destName ? CITY_COORDS[destName] ?? null : null;
-
-        const fullPath: [number, number][] = [
-          ...(startPt ? [startPt] : []),
-          ...viaPts,
-          ...(destPt ? [destPt] : []),
-        ];
-        const labels = [
-          rec.entityId,
-          ...(alt.via as string[]),
-          ...(destName ? [destName] : []),
-        ];
-
-        if (fullPath.length >= 2) {
-          setRerouteShipmentId(rec.entityId);
-          setReroutePath(fullPath);
-          setRerouteLabels(labels);
-          setMapFlyTo({ lat: fullPath[0][0], lng: fullPath[0][1], zoom: 7, seq: ++flySeq.current });
-          setTimeout(() => { setRerouteShipmentId(null); setReroutePath([]); setRerouteLabels([]); }, 30000);
-        }
+      const data = buildRerouteData(rec);
+      if (data && data.fullPath.length >= 2) {
+        setRerouteShipmentId(rec.entityId);
+        setReroutePath(data.fullPath);
+        setRerouteLabels(data.labels);
+        setBlockedPath(data.blockedPath);
+        setActiveRecMeta(data.meta);
+        setMapFlyTo({ lat: data.fullPath[0][0], lng: data.fullPath[0][1], zoom: 5, seq: ++flySeq.current });
+        setTimeout(() => {
+          setRerouteShipmentId(null); setReroutePath([]); setRerouteLabels([]);
+          setBlockedPath([]); setActiveRecMeta(null);
+        }, 30000);
       }
+      const fleetMatch = rec.evidence?.fleetMatch;
       if (fleetMatch?.fleet) {
         const fleetObj = fleets.find(f => f.assetId === fleetMatch.fleet.assetId);
         if (fleetObj?.currentLocation) {
           const { lat, lng } = fleetObj.currentLocation;
-          setMapFlyTo({ lat, lng, zoom: 10, seq: ++flySeq.current });
           setMapSpotlight({ lat, lng, label: fleetMatch.fleet.assetId, type: "fleet" });
           setTimeout(() => setMapSpotlight(null), 8000);
         }
@@ -721,6 +771,8 @@ export default function Dashboard() {
               rerouteShipmentId={rerouteShipmentId}
               reroutePath={reroutePath}
               rerouteLabels={rerouteLabels}
+              blockedPath={blockedPath}
+              activeRecMeta={activeRecMeta}
               flyTo={mapFlyTo}
               spotlight={mapSpotlight}
             />
@@ -747,38 +799,20 @@ export default function Dashboard() {
                     key={rec._id}
                     rec={rec}
                     onPreview={() => {
-                      const via = rec.evidence?.alternateRoute?.via ?? [];
-                      // Build full path: shipment current location → via waypoints → destination
-                      const ship = shipments.find(s => s.shipmentId === rec.entityId);
-                      const destName = ship?.destination;
-
-                      const startPt: [number,number] | null = ship?.currentLocation
-                        ? [ship.currentLocation.lat, ship.currentLocation.lng]
-                        : null;
-                      const viaPts = (via as string[]).map(v => CITY_COORDS[v]).filter(Boolean) as [number,number][];
-                      const destPt = destName ? CITY_COORDS[destName] ?? null : null;
-
-                      const fullPath: [number,number][] = [
-                        ...(startPt ? [startPt] : []),
-                        ...viaPts,
-                        ...(destPt ? [destPt] : []),
-                      ];
-                      const labels = [
-                        rec.entityId,
-                        ...(via as string[]),
-                        ...(destName ? [destName] : []),
-                      ];
-
-                      if (fullPath.length >= 2) {
+                      const data = buildRerouteData(rec);
+                      if (data && data.fullPath.length >= 2) {
                         setRerouteShipmentId(rec.entityId);
-                        setReroutePath(fullPath);
-                        setRerouteLabels(labels);
-                        // Fit the whole path in view: fly to midpoint at zoom 5
-                        const midIdx = Math.floor(fullPath.length / 2);
-                        setMapFlyTo({ lat: fullPath[midIdx][0], lng: fullPath[midIdx][1], zoom: 5, seq: ++flySeq.current });
-                        setTimeout(() => { setRerouteShipmentId(null); setReroutePath([]); setRerouteLabels([]); }, 25000);
+                        setReroutePath(data.fullPath);
+                        setRerouteLabels(data.labels);
+                        setBlockedPath(data.blockedPath);
+                        setActiveRecMeta(data.meta);
+                        const midIdx = Math.floor(data.fullPath.length / 2);
+                        setMapFlyTo({ lat: data.fullPath[midIdx][0], lng: data.fullPath[midIdx][1], zoom: 4, seq: ++flySeq.current });
+                        setTimeout(() => {
+                          setRerouteShipmentId(null); setReroutePath([]); setRerouteLabels([]);
+                          setBlockedPath([]); setActiveRecMeta(null);
+                        }, 30000);
                       } else if (disruptions[0]?.geometry) {
-                        // Fallback — fly to disruption zone
                         const g = disruptions[0].geometry;
                         setMapFlyTo({ lat: g.lat, lng: g.lng, zoom: 7, seq: ++flySeq.current });
                       }

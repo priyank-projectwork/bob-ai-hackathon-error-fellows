@@ -265,13 +265,27 @@ interface RerouteWaypoint {
   isEndpoint?: boolean;
 }
 
+interface RecMeta {
+  shipmentId: string;
+  cargo: string;
+  origin: string;
+  destination: string;
+  disruption: string;
+  costDelta: number;
+  timeDeltaHours: number;
+  riskScore: number;
+  routeLabel: string;
+}
+
 interface LiveMapProps {
   disruptions: any[];
   shipments: any[];
   fleets: any[];
   rerouteShipmentId?: string | null;
   reroutePath?: [number, number][];
-  rerouteLabels?: string[];       // city names for each point in reroutePath
+  rerouteLabels?: string[];
+  blockedPath?: [number, number][];
+  activeRecMeta?: RecMeta | null;
   flyTo?: { lat:number; lng:number; zoom?:number; seq?:number } | null;
   spotlight?: { lat:number; lng:number; label:string; type:string } | null;
 }
@@ -281,6 +295,7 @@ interface LiveMapProps {
 export default function LiveMap({
   disruptions, shipments, fleets,
   rerouteShipmentId, reroutePath, rerouteLabels,
+  blockedPath, activeRecMeta,
   flyTo, spotlight,
 }: LiveMapProps) {
   const mapRef = useRef<L.Map | null>(null);
@@ -320,7 +335,9 @@ export default function LiveMap({
     })
     .filter(Boolean) as RerouteWaypoint[];
 
-  const safeReroutePath = rerouteWaypoints.map(w => w.pos);
+  const safeReroutePath  = rerouteWaypoints.map(w => w.pos);
+  const safeBlockedPath  = (blockedPath ?? []).filter(validCoord);
+  const showComparison   = !!(rerouteShipmentId && safeReroutePath.length >= 2);
 
   return (
     <div className="w-full h-[500px] relative z-0">
@@ -342,68 +359,58 @@ export default function LiveMap({
           attribution="&copy; OpenStreetMap"
         />
 
-        {/* ── Current route lines (planned path for each shipment) ─────────
-            Draw: origin → current location → destination
-            Only use real, validated coordinates. Skip any leg with bad data.
-            Color: dim blue dashed = planned remaining path
-        ─────────────────────────────────────────────────────────────────── */}
+        {/* ── Planned route lines (dim blue dashed) ────────────────────────── */}
         {shipments.map((ship, i) => {
           if (ship.shipmentId === rerouteShipmentId) return null;
-
           const cur = toLatLng(ship.currentLocation?.lat, ship.currentLocation?.lng);
           if (!cur) return null;
-
-          // Collect leg endpoints — only include legs that are proper populated objects
-          // (not bare ObjectId strings, which arrive when populate() wasn't called)
           const legPoints: [number,number][] = [];
           if (Array.isArray(ship.routeLegs)) {
             for (const leg of ship.routeLegs) {
-              // A populated leg has startLocation and endLocation objects
               if (leg && typeof leg === "object" && leg.endLocation) {
                 const ep = toLatLng(leg.endLocation.lat, leg.endLocation.lng);
                 if (ep) legPoints.push(ep);
               }
-              // If it's just an ObjectId string/object, skip — don't draw
             }
           }
-
-          // Build path: current location → destination (via leg endpoints)
-          // If no populated legs, just draw current → nothing (single point, skip)
           const path: [number,number][] = [cur, ...legPoints];
           if (path.length < 2) return null;
-
           return (
             <Polyline key={`route-${i}`} positions={path}
               pathOptions={{ color:"#3b82f6", weight:1.5, opacity:0.25, dashArray:"5 7" }} />
           );
         })}
 
-        {/* ── Reroute path (AI suggested alternate route) ──────────────────
-            Shown when:
-              - "Map" button clicked in Action Center (preview, no commit)
-              - "Approve" button clicked (committed reroute)
-            Full path: shipment location → via city waypoints → destination
-            Only draws if all coordinates are valid.
+        {/* ── BLOCKED route: original path now obstructed (red thick) ─────────
+            Drawn ONLY when showing a reroute comparison. Represents the route
+            the shipment WAS on before the disruption hit it.
         ─────────────────────────────────────────────────────────────────── */}
-        {rerouteShipmentId && safeReroutePath.length >= 2 && (<>
+        {showComparison && safeBlockedPath.length >= 2 && (<>
+          {/* Red glow layer for blocked route */}
+          <Polyline positions={safeBlockedPath}
+            pathOptions={{ color:"#ef4444", weight:10, opacity:0.08 }} />
+          {/* Bold red line for blocked route */}
+          <Polyline positions={safeBlockedPath}
+            pathOptions={{ color:"#ef4444", weight:3, opacity:0.7, dashArray:"4 5" }} />
+        </>)}
+
+        {/* ── AI REROUTE path (animated green) ─────────────────────────────── */}
+        {showComparison && (<>
           {/* Glow layer */}
           <Polyline positions={safeReroutePath}
             pathOptions={{ color:"#34d399", weight:8, opacity:0, className:"reroute-glow" }} />
-          {/* Animated dashed line */}
+          {/* Animated dashed march */}
           <Polyline positions={safeReroutePath}
             pathOptions={{ color:"#34d399", weight:2.5, opacity:1,
               dashArray:"10 6", className:"reroute-march" }} />
-
-          {/* Waypoint markers with city name labels */}
+          {/* Waypoint markers */}
           {rerouteWaypoints.map((wp, i) => (
-            <Marker
-              key={`wp-${i}`}
-              position={wp.pos}
+            <Marker key={`wp-${i}`} position={wp.pos}
               icon={makeWaypointIcon(
                 wp.label,
-                i === 0 ? "#3b82f6"                          // origin = blue
-                : i === rerouteWaypoints.length - 1 ? "#34d399"  // dest = green
-                : "#f59e0b"                                   // waypoint = amber
+                i === 0 ? "#3b82f6"
+                : i === rerouteWaypoints.length - 1 ? "#34d399"
+                : "#f59e0b"
               )}
               zIndexOffset={500}
             />
@@ -442,8 +449,8 @@ export default function LiveMap({
           return (
             <React.Fragment key={`dis-${i}`}>
               <Circle center={pos} radius={80000}
-                pathOptions={{ color:"#ef4444", fillColor:"#ef4444", fillOpacity:0.05,
-                  weight:1.5, opacity:0.7, dashArray:"6 8", className:"disruption-outer-ring" }} />
+                pathOptions={{ color:"#ef4444", fillColor:"#ef4444", fillOpacity:0.07,
+                  weight:1.5, opacity:0.8, dashArray:"6 8", className:"disruption-outer-ring" }} />
               <Marker position={pos} icon={alertIcon} zIndexOffset={200}>
                 <Popup className="cc-popup" maxWidth={220}><DisruptionPopup d={d} /></Popup>
               </Marker>
@@ -480,36 +487,126 @@ export default function LiveMap({
         )}
       </div>
 
-      {/* ── Status badges (top-left) ─────────────────────────────────────────── */}
-      <div className="absolute top-3 left-3 z-[1000] flex flex-col gap-1.5">
-        <div className="flex gap-1.5 flex-wrap">
-          <span className="text-[10px] font-bold bg-[#060b14]/80 border border-blue-500/25 text-blue-400 px-2 py-0.5 rounded-full backdrop-blur-sm">
-            {shipments.length} shipments
-          </span>
-          <span className="text-[10px] font-bold bg-[#060b14]/80 border border-emerald-500/25 text-emerald-400 px-2 py-0.5 rounded-full backdrop-blur-sm">
-            {fleets.length} idle fleet
-          </span>
-          {disruptions.length > 0 && (
-            <span className="text-[10px] font-bold bg-[#060b14]/80 border border-red-500/30 text-red-400 px-2 py-0.5 rounded-full backdrop-blur-sm animate-pulse">
-              ▲ {disruptions.length} disruption{disruptions.length > 1 ? "s" : ""}
+      {/* ── Top-left: status badges + Before/After panel ─────────────────────── */}
+      <div className="absolute top-3 left-3 z-[1000] flex flex-col gap-1.5 max-w-[320px]">
+        {/* Status badges — always visible */}
+        {!showComparison && (
+          <div className="flex gap-1.5 flex-wrap">
+            <span className="text-[10px] font-bold bg-[#060b14]/80 border border-blue-500/25 text-blue-400 px-2 py-0.5 rounded-full backdrop-blur-sm">
+              {shipments.length} shipments
             </span>
-          )}
-        </div>
-        {/* Reroute banner — explains what the green line is */}
-        {rerouteShipmentId && safeReroutePath.length >= 2 && (
-          <div className="flex items-center gap-2 bg-emerald-950/90 border border-emerald-700/50 rounded-lg px-2.5 py-1.5 backdrop-blur-sm max-w-[260px]">
-            <span className="w-4 border-t-2 border-dashed border-emerald-400 flex-shrink-0" />
-            <div>
-              <div className="text-[10px] font-bold text-emerald-400">AI Reroute Preview</div>
-              <div className="text-[9px] text-emerald-700 leading-snug">
-                {rerouteShipmentId} · {safeReroutePath.length - 1} leg{safeReroutePath.length > 2 ? "s" : ""} via {rerouteLabels?.slice(1, -1).join(" → ") || "alternate route"}
+            <span className="text-[10px] font-bold bg-[#060b14]/80 border border-emerald-500/25 text-emerald-400 px-2 py-0.5 rounded-full backdrop-blur-sm">
+              {fleets.length} idle fleet
+            </span>
+            {disruptions.length > 0 && (
+              <span className="text-[10px] font-bold bg-[#060b14]/80 border border-red-500/30 text-red-400 px-2 py-0.5 rounded-full backdrop-blur-sm animate-pulse">
+                ▲ {disruptions.length} disruption{disruptions.length > 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* ── BEFORE / AFTER explanation panel — shown when Map is clicked ────
+            Replaces the tiny banner with a full structured story:
+              PROBLEM section: what was blocked and why
+              AI SOLUTION section: the new route with concrete metrics
+        ─────────────────────────────────────────────────────────────────── */}
+        {showComparison && activeRecMeta && (
+          <div className="bg-[#060b14]/95 border border-slate-700/60 rounded-xl overflow-hidden backdrop-blur-md shadow-2xl shadow-black/60 w-[310px]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800/60 bg-slate-900/40">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">AI Route Comparison</span>
+              </div>
+              <span className="text-[9px] font-mono text-slate-600">{activeRecMeta.shipmentId}</span>
+            </div>
+
+            {/* PROBLEM row */}
+            <div className="px-3 pt-2.5 pb-2 border-b border-slate-800/40">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="text-[8px] font-bold uppercase tracking-widest text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Problem</span>
+                <span className="text-[9px] text-slate-600">Why the original route failed</span>
+              </div>
+              <div className="flex items-start gap-2">
+                {/* Red blocked route indicator */}
+                <div className="flex flex-col items-center gap-0.5 pt-1 flex-shrink-0">
+                  <span className="w-2 h-2 rounded-full bg-red-500" />
+                  <span className="w-px h-4 bg-red-500/30" />
+                  <span className="w-2 h-2 rounded-full bg-red-500/50" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] text-slate-300 font-semibold">
+                    {activeRecMeta.origin} → {activeRecMeta.destination}
+                  </div>
+                  <div className="text-[10px] text-red-400 mt-0.5 leading-snug">
+                    ✕ Blocked by {activeRecMeta.disruption}
+                  </div>
+                  <div className="text-[9px] text-slate-600 mt-0.5">
+                    {activeRecMeta.cargo} cargo · route now impassable
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* AI SOLUTION row */}
+            <div className="px-3 pt-2.5 pb-2.5">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="text-[8px] font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">AI Solution</span>
+                <span className="text-[9px] text-slate-600">Recommended alternate route</span>
+              </div>
+              <div className="flex items-start gap-2">
+                {/* Green route indicator */}
+                <div className="flex flex-col items-center gap-0.5 pt-1 flex-shrink-0">
+                  <span className="w-2 h-2 rounded-full bg-blue-400" />
+                  {rerouteLabels && rerouteLabels.slice(1, -1).map((_, j) => (
+                    <React.Fragment key={j}>
+                      <span className="w-px h-3 bg-emerald-500/40" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80" />
+                    </React.Fragment>
+                  ))}
+                  <span className="w-px h-3 bg-emerald-500/40" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] text-emerald-300 font-semibold leading-snug">
+                    {rerouteLabels?.join(" → ") || activeRecMeta.routeLabel}
+                  </div>
+                  {/* Metrics grid */}
+                  <div className="grid grid-cols-3 gap-1.5 mt-2">
+                    <div className="bg-slate-900/60 rounded-lg px-1.5 py-1 text-center">
+                      <div className={`text-[11px] font-black ${activeRecMeta.costDelta > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                        {activeRecMeta.costDelta === 0 ? "—" : activeRecMeta.costDelta > 0 ? `+$${(activeRecMeta.costDelta/1000).toFixed(1)}k` : `-$${(Math.abs(activeRecMeta.costDelta)/1000).toFixed(1)}k`}
+                      </div>
+                      <div className="text-[8px] text-slate-600 mt-0.5">cost</div>
+                    </div>
+                    <div className="bg-slate-900/60 rounded-lg px-1.5 py-1 text-center">
+                      <div className={`text-[11px] font-black ${activeRecMeta.timeDeltaHours > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                        {activeRecMeta.timeDeltaHours === 0 ? "same" : activeRecMeta.timeDeltaHours > 0 ? `+${activeRecMeta.timeDeltaHours}h` : `${activeRecMeta.timeDeltaHours}h`}
+                      </div>
+                      <div className="text-[8px] text-slate-600 mt-0.5">time</div>
+                    </div>
+                    <div className="bg-slate-900/60 rounded-lg px-1.5 py-1 text-center">
+                      <div className="text-[11px] font-black text-emerald-400">{activeRecMeta.riskScore}</div>
+                      <div className="text-[8px] text-slate-600 mt-0.5">risk</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer hint */}
+            <div className="px-3 py-1.5 border-t border-slate-800/40 bg-slate-900/20">
+              <div className="text-[8px] text-slate-700">
+                <span className="text-red-500/60">━━</span> blocked route &nbsp;
+                <span className="text-emerald-400/60">╌╌</span> AI reroute &nbsp;·&nbsp; approve in Action Center →
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* ── Legend (bottom-left) ─────────────────────────────────────────────── */}
+      {/* ── Legend (bottom-left) — compact when comparison is active ─────────── */}
       <div className="absolute bottom-8 left-3 z-[1000] bg-[#060b14]/90 border border-slate-800 rounded-xl px-3 py-2.5 backdrop-blur-sm">
         <div className="text-[8px] font-bold uppercase tracking-widest text-slate-700 mb-2">Map Legend</div>
         <div className="space-y-1.5">
@@ -519,7 +616,7 @@ export default function LiveMap({
           </div>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-            <span className="text-[9px] text-slate-500">Shipment (high risk)</span>
+            <span className="text-[9px] text-slate-500">Shipment (at risk)</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-4 border-t border-dashed border-blue-500/40 flex-shrink-0" />
@@ -533,10 +630,16 @@ export default function LiveMap({
             <span className="w-2 h-2 rounded-full bg-red-500/50 border border-red-500 flex-shrink-0" />
             <span className="text-[9px] text-slate-500">Disruption zone</span>
           </div>
-          {rerouteShipmentId && (
-            <div className="flex items-center gap-2 pt-1 border-t border-slate-800 mt-1">
-              <span className="w-4 border-t-2 border-dashed border-emerald-400 flex-shrink-0" />
-              <span className="text-[9px] text-emerald-500 font-semibold">AI reroute path</span>
+          {showComparison && (
+            <div className="pt-1 border-t border-slate-800 mt-1 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="w-4 border-t-2 border-red-500/70 border-dashed flex-shrink-0" />
+                <span className="text-[9px] text-red-400/80">Blocked original route</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-4 border-t-2 border-dashed border-emerald-400 flex-shrink-0" />
+                <span className="text-[9px] text-emerald-400 font-semibold">AI reroute (new path)</span>
+              </div>
             </div>
           )}
         </div>
