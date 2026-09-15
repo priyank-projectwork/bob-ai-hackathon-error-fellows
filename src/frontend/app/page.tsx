@@ -170,10 +170,59 @@ function SimToast({ step, label }: { step: number; label: string }) {
 }
 
 // ── Recommendation card with inline expand ────────────────────────────────────
-// "View on map" previews the route path without committing. No modal.
 
-function RecCard({ rec, onPreview, onReject, onApprove }: {
+// Detect transport mode from route string and return icon + label
+function getModeInfo(routeStr: string = "", origin: string = ""): { icon: React.ReactNode; label: string; color: string } {
+  const r = routeStr.toLowerCase();
+  if (r.includes("air") || r.includes("freight") && r.includes("las vegas"))
+    return {
+      icon: (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/>
+        </svg>
+      ),
+      label: "Air Freight", color: "text-sky-400",
+    };
+  if (r.includes("ocean") || r.includes("port") || r.includes("pacific") || r.includes("vessel") ||
+      origin === "Shanghai" || origin === "Tokyo" || origin === "Singapore")
+    return {
+      icon: (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4M4 12l4-4M4 12l4 4M20 12l-4-4M20 12l-4 4"/>
+        </svg>
+      ),
+      label: "Ocean Vessel", color: "text-blue-400",
+    };
+  return {
+    icon: (
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <rect x="1" y="3" width="15" height="13" rx="1"/>
+        <path d="M16 8h4l3 5v3h-7V8zM5.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM18.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/>
+      </svg>
+    ),
+    label: "Road Freight", color: "text-emerald-400",
+  };
+}
+
+// Build a readable "Origin → ... → Destination" chain from the full route string
+function RouteChain({ route, color = "text-slate-300" }: { route: string; color?: string }) {
+  const parts = route.split("→").map(s => s.trim()).filter(Boolean);
+  return (
+    <span className="flex flex-wrap items-center gap-0.5">
+      {parts.map((p, i) => (
+        <span key={i} className="flex items-center gap-0.5">
+          <span className={`text-[9px] font-medium ${color}`}>{p}</span>
+          {i < parts.length - 1 && <span className="text-slate-700 text-[8px]">›</span>}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: {
   rec: RecommendationData;
+  shipment?: any;
+  disruption?: any;
   onPreview: () => void;
   onReject: () => void;
   onApprove: () => void;
@@ -182,65 +231,134 @@ function RecCard({ rec, onPreview, onReject, onApprove }: {
   const alt   = rec.evidence?.alternateRoute;
   const fleet = rec.evidence?.fleetMatch;
 
-  // Derive a short disruption label from the rec type / rationale
-  const disruptionHint = rec.recommendationType?.toLowerCase().includes("reroute")
-    ? "disruption blocks this route"
-    : rec.recommendationType?.toLowerCase().includes("fleet")
-    ? "fleet reassignment needed"
-    : "action required";
+  const origin      = shipment?.origin      ?? "";
+  const destination = shipment?.destination ?? "";
+  const carrier     = shipment?.carrier     ?? "";
+  const cargoType   = shipment?.cargoType   ?? "";
+  const priority    = shipment?.priority    ?? "";
+  const cargoValue  = shipment?.cargoValue  ?? 0;
+
+  // Disruption details
+  const disruptionType  = disruption?.type  ?? "Active Disruption";
+  const disruptionTitle = disruption?.title ?? disruption?.type ?? "disruption";
+
+  // Before route = the direct route that was blocked
+  const beforeRoute = origin && destination ? `${origin} → ${destination}` : "Direct route";
+
+  // Transport mode for BEFORE (original) and AFTER (AI fix)
+  const beforeMode = getModeInfo(beforeRoute, origin);
+  const afterMode  = getModeInfo(alt?.route ?? "", origin);
+
+  // Priority badge colour
+  const priorityColor = priority === "Critical" ? "text-red-400 bg-red-500/10 ring-1 ring-red-500/20"
+    : priority === "High"     ? "text-orange-400 bg-orange-500/10 ring-1 ring-orange-500/20"
+    : "text-slate-400 bg-slate-800";
 
   return (
     <div className="rounded-xl border border-slate-700/40 bg-slate-800/30 overflow-hidden anim-slide-down">
 
-      {/* ── Problem banner: what's wrong ──────────────────────────────────── */}
+      {/* ── Problem banner ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 px-3.5 pt-2.5 pb-2 border-b border-red-900/20 bg-red-950/10">
         <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-        <span className="text-[9px] font-bold uppercase tracking-wider text-red-400/80">{disruptionHint}</span>
+        <span className="text-[9px] font-bold uppercase tracking-wider text-red-400/80">
+          {disruptionType} blocks this route
+        </span>
         <span className="ml-auto text-[9px] font-mono text-slate-600">{rec.entityId}</span>
       </div>
 
-      {/* ── Header: shipment + risk score ──────────────────────────────────── */}
-      <div className="flex items-center justify-between px-3.5 pt-2 pb-1.5 gap-2">
-        <div className="min-w-0">
-          <div className="text-[9px] font-bold uppercase tracking-widest text-indigo-400 mb-0.5">{rec.recommendationType}</div>
-        </div>
-        <div className="flex-shrink-0 flex items-center gap-1.5">
-          <span className="text-[9px] text-slate-600">Risk</span>
-          <ScoreMeter value={rec.score} />
-        </div>
-      </div>
-
-      {/* ── Route comparison strip (always visible) ────────────────────────── */}
-      {alt && (
-        <div className="mx-3.5 mb-2 rounded-lg overflow-hidden border border-slate-800/60">
-          {/* BEFORE row */}
-          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-red-950/20 border-b border-red-900/20">
-            <span className="text-[8px] font-bold text-red-400 bg-red-500/10 px-1 py-0.5 rounded flex-shrink-0">BEFORE</span>
-            <span className="text-[9px] text-red-300/70 truncate">
-              Direct route — ✕ blocked by active disruption
+      {/* ── Cargo info strip ───────────────────────────────────────────────── */}
+      {(carrier || cargoType || priority) && (
+        <div className="flex items-center gap-2 px-3.5 pt-2 pb-0.5 flex-wrap">
+          {priority && (
+            <span className={`text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${priorityColor}`}>
+              {priority}
             </span>
-          </div>
-          {/* AFTER row */}
-          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-emerald-950/10">
-            <span className="text-[8px] font-bold text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded flex-shrink-0">AI FIX</span>
-            <span className="text-[9px] text-emerald-300/80 truncate flex-1">{alt.route.split("→").slice(-2).join("→ ").trim()}</span>
-            <div className="flex items-center gap-2 flex-shrink-0 text-[9px]">
-              <span className={alt.costDelta > 0 ? "text-amber-400" : "text-emerald-400"}>
-                {alt.costDelta > 0 ? `+$${alt.costDelta.toLocaleString()}` : "same cost"}
-              </span>
-              <span className={alt.timeDeltaHours > 0 ? "text-amber-400" : "text-emerald-400"}>
-                {alt.timeDeltaHours > 0 ? `+${alt.timeDeltaHours}h` : `${alt.timeDeltaHours}h`}
-              </span>
-            </div>
-          </div>
+          )}
+          {cargoType && <span className="text-[9px] text-slate-500">{cargoType}</span>}
+          {cargoValue > 0 && (
+            <span className="text-[9px] text-slate-600 font-mono">${(cargoValue / 1000).toFixed(0)}k cargo</span>
+          )}
+          {carrier && <span className="text-[9px] text-slate-600 truncate ml-auto">{carrier}</span>}
         </div>
       )}
 
-      {/* Fleet match strip */}
+      {/* ── Header: type + risk score ───────────────────────────────────────── */}
+      <div className="flex items-center justify-between px-3.5 pt-1.5 pb-1.5 gap-2">
+        <div className="text-[9px] font-bold uppercase tracking-widest text-indigo-400">{rec.recommendationType}</div>
+        <div className="flex-shrink-0 flex items-center gap-1.5">
+          <span className="text-[9px] text-slate-600">Risk</span>
+          <ScoreMeter value={rec.score} />
+          <span className="text-[10px] font-bold tabular-nums" style={{ color: rec.score >= 75 ? "#f87171" : rec.score >= 50 ? "#fb923c" : "#fbbf24" }}>
+            {rec.score}
+          </span>
+        </div>
+      </div>
+
+      {/* ── BEFORE / AI FIX comparison ─────────────────────────────────────── */}
+      {alt && (
+        <div className="mx-3.5 mb-2 rounded-lg overflow-hidden border border-slate-800/60">
+
+          {/* BEFORE row — actual blocked route with mode icon */}
+          <div className="px-2.5 py-2 bg-red-950/20 border-b border-red-900/20">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-[8px] font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded flex-shrink-0">BEFORE</span>
+              <span className={`flex items-center gap-1 ${beforeMode.color} opacity-70`}>
+                {beforeMode.icon}
+                <span className="text-[8px] font-semibold">{beforeMode.label}</span>
+              </span>
+              <span className="ml-auto text-[8px] text-red-500/70 font-bold">✕ BLOCKED</span>
+            </div>
+            <RouteChain route={beforeRoute} color="text-red-300/80" />
+            {disruptionTitle && (
+              <div className="text-[8px] text-red-400/60 mt-0.5">
+                Disruption: {disruptionTitle}
+              </div>
+            )}
+          </div>
+
+          {/* AI FIX row — full reroute with mode icon + cost/time deltas */}
+          <div className="px-2.5 py-2 bg-emerald-950/10">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-[8px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded flex-shrink-0">AI FIX</span>
+              <span className={`flex items-center gap-1 ${afterMode.color}`}>
+                {afterMode.icon}
+                <span className="text-[8px] font-semibold">{afterMode.label}</span>
+              </span>
+              <div className="ml-auto flex items-center gap-2 text-[9px] flex-shrink-0">
+                <span className={alt.costDelta > 0 ? "text-amber-400 font-semibold" : "text-emerald-400"}>
+                  {alt.costDelta > 0 ? `+$${alt.costDelta.toLocaleString()}` : "no extra cost"}
+                </span>
+                <span className={alt.timeDeltaHours > 0 ? "text-amber-400 font-semibold" : "text-emerald-400 font-semibold"}>
+                  {alt.timeDeltaHours > 0 ? `+${alt.timeDeltaHours}h` : `${Math.abs(alt.timeDeltaHours)}h faster`}
+                </span>
+              </div>
+            </div>
+            <RouteChain route={alt.route} color="text-emerald-300/90" />
+          </div>
+
+          {/* Fleet assigned */}
+          {fleet && (
+            <div className="flex items-center gap-2 px-2.5 py-1.5 bg-cyan-950/10 border-t border-slate-800/60">
+              <svg className="w-3 h-3 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2 1M13 16l2 1M13 16V9a1 1 0 011-1h2.586a1 1 0 01.707.293l3 3a1 1 0 01.293.707V16"/>
+              </svg>
+              <span className="text-[8px] font-bold text-cyan-400 uppercase tracking-widest">Fleet Dispatched</span>
+              <span className="text-[9px] text-cyan-300/80 font-semibold">{fleet.fleet.assetId}</span>
+              {fleet.fleet.locationName && (
+                <span className="text-[9px] text-slate-600 truncate flex-1">{fleet.fleet.locationName}</span>
+              )}
+              <span className="text-[9px] text-slate-600 flex-shrink-0">{fleet.distanceKm}km</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Fleet match strip (when no alt route) */}
       {fleet && !alt && (
-        <div className="mx-3.5 mb-2 rounded-lg border border-slate-800/60 px-2.5 py-1.5 bg-emerald-950/10 flex items-center gap-2">
-          <span className="text-[8px] font-bold text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded flex-shrink-0">FLEET</span>
-          <span className="text-[9px] text-emerald-300/80 font-semibold">{fleet.fleet.assetId}</span>
+        <div className="mx-3.5 mb-2 rounded-lg border border-slate-800/60 px-2.5 py-1.5 bg-cyan-950/10 flex items-center gap-2">
+          <span className="text-[8px] font-bold text-cyan-400 bg-cyan-500/10 px-1 py-0.5 rounded flex-shrink-0">FLEET</span>
+          <span className="text-[9px] text-cyan-300/80 font-semibold">{fleet.fleet.assetId}</span>
           {fleet.fleet.locationName && <span className="text-[9px] text-slate-600 truncate">{fleet.fleet.locationName}</span>}
           <span className="text-[9px] text-slate-600 ml-auto flex-shrink-0">{fleet.distanceKm}km</span>
         </div>
@@ -858,6 +976,8 @@ export default function Dashboard() {
                   <RecCard
                     key={rec._id}
                     rec={rec}
+                    shipment={shipments.find(s => s.shipmentId === rec.entityId)}
+                    disruption={disruptions[0] ?? null}
                     onPreview={() => {
                       const data = buildRerouteData(rec);
                       if (data && data.fullPath.length >= 2) {
