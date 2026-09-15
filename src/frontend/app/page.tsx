@@ -953,6 +953,12 @@ export default function Dashboard() {
               fleetDispatchLine={fleetDispatchLine}
               flyTo={mapFlyTo}
               spotlight={mapSpotlight}
+              focusShipmentIds={
+                activeScenario === "la"      ? ["SHIP-MVP-101", "SHIP-MVP-102", "SHIP-MVP-106"] :
+                activeScenario === "chicago" ? ["SHIP-MVP-103"] :
+                activeScenario === "miami"   ? ["SHIP-MVP-104"] :
+                undefined
+              }
             />
           </div>
 

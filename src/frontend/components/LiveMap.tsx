@@ -311,6 +311,8 @@ interface LiveMapProps {
   fleetDispatchLine?: { from: [number,number]; to: [number,number]; assetId: string } | null;
   flyTo?: { lat:number; lng:number; zoom?:number; seq?:number; fitPts?: [number,number][] } | null;
   spotlight?: { lat:number; lng:number; label:string; type:string } | null;
+  /** IDs of shipments affected by the active scenario — used for focus mode */
+  focusShipmentIds?: string[];
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -319,10 +321,15 @@ export default function LiveMap({
   disruptions, shipments, fleets,
   rerouteShipmentId, reroutePath, rerouteLabels,
   blockedPath, activeRecMeta, fleetDispatchLine,
-  flyTo, spotlight,
+  flyTo, spotlight, focusShipmentIds,
 }: LiveMapProps) {
   const mapRef = useRef<L.Map | null>(null);
   const center: [number, number] = [38.5, -96.5];
+
+  // ── Focus / noise reduction ──────────────────────────────────────────────
+  // showComparison  → "See on Map" was clicked: highlight ONE shipment only
+  // focusShipmentIds → scenario active: highlight affected shipments, dim rest
+  // neither          → idle state: show everything normally
 
   const fitAll = () => {
     if (!mapRef.current) return;
@@ -362,6 +369,21 @@ export default function LiveMap({
   const safeBlockedPath  = (blockedPath ?? []).filter(validCoord);
   const showComparison   = !!(rerouteShipmentId && safeReroutePath.length >= 2);
 
+  // Which shipment IDs should be fully visible vs dimmed/hidden
+  const focusSet = focusShipmentIds && focusShipmentIds.length > 0
+    ? new Set(focusShipmentIds) : null;
+
+  // Helper: should this shipment be shown at full opacity?
+  const isShipFocused = (id: string) => {
+    if (showComparison) return id === rerouteShipmentId;  // comparison: only the rerouted one
+    if (focusSet)       return focusSet.has(id);          // scenario active: only affected ones
+    return true;                                          // idle: everything
+  };
+
+  // Opacity values
+  const DIM_OPACITY  = 0.08;  // almost invisible background noise
+  const FULL_OPACITY = 1.0;
+
   return (
     <div className="w-full h-[600px] relative z-0">
       <style>{MAP_STYLES}</style>
@@ -382,9 +404,14 @@ export default function LiveMap({
           attribution="&copy; OpenStreetMap"
         />
 
-        {/* ── Planned route lines (dim blue dashed) ────────────────────────── */}
-        {shipments.map((ship, i) => {
-          if (ship.shipmentId === rerouteShipmentId) return null;
+        {/* ── Planned route lines ───────────────────────────────────────────
+            In comparison mode: hide ALL background route lines (too noisy).
+            In scenario mode:   show only affected shipments' lines.
+            Idle:               show all at low opacity.
+        ─────────────────────────────────────────────────────────────────── */}
+        {!showComparison && shipments.map((ship, i) => {
+          const focused = isShipFocused(ship.shipmentId);
+          if (!focused) return null; // completely hide unrelated route lines
           const cur = toLatLng(ship.currentLocation?.lat, ship.currentLocation?.lng);
           if (!cur) return null;
           const legPoints: [number,number][] = [];
@@ -400,73 +427,62 @@ export default function LiveMap({
           if (path.length < 2) return null;
           return (
             <Polyline key={`route-${i}`} positions={path}
-              pathOptions={{ color:"#3b82f6", weight:1.5, opacity:0.25, dashArray:"5 7" }} />
+              pathOptions={{ color:"#3b82f6", weight:1.5, opacity: focusSet ? 0.35 : 0.2, dashArray:"5 7" }} />
           );
         })}
 
-        {/* ── BLOCKED route (red) ───────────────────────────────────────────
-            Full origin → destination corridor that is now obstructed.
-            Shown only during comparison mode.
+        {/* ── BLOCKED route (red dashed) ────────────────────────────────────
+            Shown only in comparison mode.
         ─────────────────────────────────────────────────────────────────── */}
         {showComparison && safeBlockedPath.length >= 2 && (<>
-          {/* Red solid line */}
           <Polyline positions={safeBlockedPath}
-            pathOptions={{ color:"#ef4444", weight:3, opacity:0.75, dashArray:"5 6" }} />
-          {/* Origin pin (red) */}
+            pathOptions={{ color:"#ef4444", weight:3, opacity:0.8, dashArray:"5 6" }} />
           <Marker position={safeBlockedPath[0]}
             icon={makeWaypointIcon(activeRecMeta?.origin ?? "Origin", "#ef4444")}
-            zIndexOffset={400}
-          />
-          {/* Destination pin (red/dim) — only if not overlapping reroute dest */}
+            zIndexOffset={400} />
           <Marker position={safeBlockedPath[safeBlockedPath.length - 1]}
             icon={makeWaypointIcon(activeRecMeta?.destination ?? "Dest", "#f87171")}
-            zIndexOffset={400}
-          />
+            zIndexOffset={400} />
         </>)}
 
-        {/* ── AI REROUTE path (animated green, single line only) ───────────── */}
+        {/* ── AI REROUTE path (animated green) ─────────────────────────────── */}
         {showComparison && (<>
-          {/* Single animated dashed march — NO glow polyline (was causing double-line) */}
           <Polyline positions={safeReroutePath}
-            pathOptions={{ color:"#34d399", weight:3, opacity:1,
+            pathOptions={{ color:"#34d399", weight:3.5, opacity:1,
               dashArray:"10 6", className:"reroute-march" }} />
-          {/* Waypoint pins — labelled by city name */}
           {rerouteWaypoints.map((wp, i) => (
             <Marker key={`wp-${i}`} position={wp.pos}
               icon={makeWaypointIcon(
                 wp.label,
-                i === 0 ? "#60a5fa"                              // origin = blue
-                : i === rerouteWaypoints.length - 1 ? "#34d399" // destination = green
-                : "#f59e0b"                                      // via waypoint = amber
+                i === 0 ? "#60a5fa"
+                : i === rerouteWaypoints.length - 1 ? "#34d399"
+                : "#f59e0b"
               )}
-              zIndexOffset={500}
-            />
+              zIndexOffset={500} />
           ))}
         </>)}
 
-        {/* ── Fleet dispatch line ───────────────────────────────────────────
-            Dotted cyan line from idle truck → affected shipment current position.
-            Visualises "this truck is being dispatched to intercept the shipment".
-        ─────────────────────────────────────────────────────────────────── */}
+        {/* ── Fleet dispatch line (cyan dotted) ────────────────────────────── */}
         {showComparison && fleetDispatchLine && (<>
-          {/* Dotted cyan line */}
           <Polyline positions={[fleetDispatchLine.from, fleetDispatchLine.to]}
             pathOptions={{ color:"#22d3ee", weight:1.5, opacity:0.7, dashArray:"4 6" }} />
-          {/* Fleet truck pin */}
           <Marker position={fleetDispatchLine.from}
             icon={makeWaypointIcon(fleetDispatchLine.assetId, "#22d3ee")}
-            zIndexOffset={450}
-          />
+            zIndexOffset={450} />
         </>)}
 
         {/* ── Shipment markers ─────────────────────────────────────────────── */}
         {shipments.map((ship, i) => {
           const pos = toLatLng(ship.currentLocation?.lat, ship.currentLocation?.lng);
           if (!pos) return null;
+          const focused = isShipFocused(ship.shipmentId);
+          // In comparison mode, fully hide non-focused shipments
+          if (showComparison && !focused) return null;
           return (
             <Marker key={`ship-${i}`} position={pos}
               icon={getShipmentIcon(ship)}
-              zIndexOffset={100}
+              opacity={focused ? FULL_OPACITY : DIM_OPACITY}
+              zIndexOffset={focused ? 200 : 10}
             >
               <Popup className="cc-popup" maxWidth={230}><ShipmentPopup s={ship} /></Popup>
             </Marker>
@@ -474,11 +490,17 @@ export default function LiveMap({
         })}
 
         {/* ── Fleet markers ────────────────────────────────────────────────── */}
-        {fleets.map((fleet, i) => {
+        {/* In comparison mode: hide all fleet markers (the dispatch line is enough).
+            In scenario mode:   show only fleet trucks near the disruption zone.
+            Idle:               show all. */}
+        {!showComparison && fleets.map((fleet, i) => {
           const pos = toLatLng(fleet.currentLocation?.lat, fleet.currentLocation?.lng);
           if (!pos) return null;
+          // In scenario (focus) mode, dim fleet trucks that aren't the dispatched one
+          const isDispatchedFleet = fleetDispatchLine?.assetId === fleet.assetId;
+          const opacity = (focusSet && !isDispatchedFleet) ? DIM_OPACITY : FULL_OPACITY;
           return (
-            <Marker key={`fleet-${i}`} position={pos} icon={truckIcon}>
+            <Marker key={`fleet-${i}`} position={pos} icon={truckIcon} opacity={opacity}>
               <Popup className="cc-popup" maxWidth={210}><FleetPopup f={fleet} /></Popup>
             </Marker>
           );
