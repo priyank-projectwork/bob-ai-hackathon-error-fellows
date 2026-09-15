@@ -29,6 +29,18 @@ export const TOUR_STEPS = [
     placement: "left" as const,
   },
   {
+    target: "[data-tour='see-on-map']",
+    title: "See on Map",
+    body: "Click this button on any recommendation to instantly visualise the full route comparison on the map — the blocked path in red and the AI reroute in green appear together, with a cyan line showing which idle truck is being dispatched to cover the gap.",
+    placement: "top" as const,
+  },
+  {
+    target: "[data-tour='map-comparison']",
+    title: "Before / After Route Comparison",
+    body: "This panel tells the full story: PROBLEM shows what was blocked and why, AI SOLUTION shows the new corridor with concrete cost and time deltas. The red dashed line on the map is the failed route; the animated green line is the AI-optimised reroute.",
+    placement: "right" as const,
+  },
+  {
     target: "[data-tour='incidents']",
     title: "Active Incidents",
     body: "Cold-chain excursions and disruption alerts arrive here in real time. Each excursion is classified Minor / Major / Critical by watsonx.ai against GDP pharmaceutical guidelines — the same standard used in FDA/EMA audits.",

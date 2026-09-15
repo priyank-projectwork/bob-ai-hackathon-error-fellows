@@ -538,7 +538,7 @@ export default function LiveMap({
               AI SOLUTION section: the new route with concrete metrics
         ─────────────────────────────────────────────────────────────────── */}
         {showComparison && activeRecMeta && (
-          <div className="bg-[#060b14]/95 border border-slate-700/60 rounded-xl overflow-hidden backdrop-blur-md shadow-2xl shadow-black/60 w-[310px]">
+          <div data-tour="map-comparison" className="bg-[#060b14]/95 border border-slate-700/60 rounded-xl overflow-hidden backdrop-blur-md shadow-2xl shadow-black/60 w-[310px]">
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800/60 bg-slate-900/40">
               <div className="flex items-center gap-1.5">
