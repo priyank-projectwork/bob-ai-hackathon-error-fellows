@@ -318,9 +318,11 @@ export default function Dashboard() {
   const [rerouteShipmentId, setRerouteShipmentId] = useState<string | null>(null);
   const [reroutePath, setReroutePath]   = useState<[number, number][]>([]);
   const [rerouteLabels, setRerouteLabels] = useState<string[]>([]);
-  // The ORIGINAL (blocked) route shown in red alongside the AI reroute
+  // The ORIGINAL (blocked) route shown in red
   const [blockedPath, setBlockedPath]   = useState<[number, number][]>([]);
-  // Rec metadata for the "Before vs After" map panel
+  // Fleet dispatch line: from idle fleet position → shipment current location
+  const [fleetDispatchLine, setFleetDispatchLine] = useState<{ from: [number,number]; to: [number,number]; assetId: string } | null>(null);
+  // Rec metadata for the Before/After map panel
   const [activeRecMeta, setActiveRecMeta] = useState<{
     shipmentId: string; cargo: string; origin: string; destination: string;
     disruption: string;
@@ -436,6 +438,7 @@ export default function Dashboard() {
       setRerouteLabels([]);
       setBlockedPath([]);
       setActiveRecMeta(null);
+      setFleetDispatchLine(null);
     });
 
     socket.on("disruption.updated", (data: any) => {
@@ -481,6 +484,7 @@ export default function Dashboard() {
     setRerouteLabels([]);
     setBlockedPath([]);
     setActiveRecMeta(null);
+    setFleetDispatchLine(null);
 
     setSimKey(key);
     setSimLabel(scenarios.find(s => s.key === key)?.label ?? key);
@@ -518,6 +522,7 @@ export default function Dashboard() {
     setRerouteLabels([]);
     setBlockedPath([]);
     setActiveRecMeta(null);
+    setFleetDispatchLine(null);
     await fetch("http://127.0.0.1:4000/api/v1/reset", { method: "POST" }).catch(() => {});
     // Re-fetch to sync KPIs / shipments from DB
     await fetchAll();
@@ -537,24 +542,30 @@ export default function Dashboard() {
     return [];
   };
 
-  // Helper: build reroute path + labels + recMeta from a recommendation
+  // Helper: build reroute path + labels + recMeta + fleet dispatch line
   const buildRerouteData = (rec: RecommendationData) => {
     const alt      = rec.evidence?.alternateRoute;
     const ship     = shipments.find(f => f.shipmentId === rec.entityId);
-    const destName = ship?.destination ?? "";
+    const originName = ship?.origin ?? "";
+    const destName   = ship?.destination ?? "";
     if (!alt?.via?.length) return null;
 
-    const startPt: [number, number] | null = ship?.currentLocation
-      ? [ship.currentLocation.lat, ship.currentLocation.lng] : null;
+    // Start from the named ORIGIN city (not current location which may be near destination)
+    const originPt: [number, number] | null = originName ? CITY_COORDS[originName] ?? null : null;
     const viaPts = (alt.via as string[]).map(v => CITY_COORDS[v]).filter(Boolean) as [number, number][];
     const destPt = destName ? CITY_COORDS[destName] ?? null : null;
 
     const fullPath: [number, number][] = [
-      ...(startPt ? [startPt] : []),
+      ...(originPt ? [originPt] : []),
       ...viaPts,
       ...(destPt ? [destPt] : []),
     ];
-    const labels = [rec.entityId, ...(alt.via as string[]), ...(destName ? [destName] : [])];
+    // Labels: use the actual city name for origin (not shipment ID)
+    const labels = [
+      originName || rec.entityId,
+      ...(alt.via as string[]),
+      ...(destName ? [destName] : []),
+    ];
 
     const disruption = disruptions[0];
     const disruptionLabel = disruption?.title ?? disruption?.type ?? "Active Disruption";
@@ -562,7 +573,7 @@ export default function Dashboard() {
     const meta = {
       shipmentId:    rec.entityId,
       cargo:         ship?.cargoType ?? "Cargo",
-      origin:        ship?.origin ?? "",
+      origin:        originName,
       destination:   destName,
       disruption:    disruptionLabel,
       costDelta:     alt.costDelta,
@@ -571,7 +582,21 @@ export default function Dashboard() {
       routeLabel:    alt.route,
     };
 
-    return { fullPath, labels, blockedPath: buildBlockedPath(ship), meta };
+    // Fleet dispatch line: idle truck → shipment's current position
+    const fleetMatch = rec.evidence?.fleetMatch;
+    let fleetLine: { from: [number,number]; to: [number,number]; assetId: string } | null = null;
+    if (fleetMatch?.fleet) {
+      const fleetObj = fleets.find(f => f.assetId === fleetMatch.fleet.assetId);
+      if (fleetObj?.currentLocation && ship?.currentLocation) {
+        fleetLine = {
+          from: [fleetObj.currentLocation.lat, fleetObj.currentLocation.lng],
+          to:   [ship.currentLocation.lat, ship.currentLocation.lng],
+          assetId: fleetMatch.fleet.assetId,
+        };
+      }
+    }
+
+    return { fullPath, labels, blockedPath: buildBlockedPath(ship), meta, fleetLine };
   };
 
   const approveRec = async (rec: RecommendationData) => {
@@ -584,10 +609,11 @@ export default function Dashboard() {
         setRerouteLabels(data.labels);
         setBlockedPath(data.blockedPath);
         setActiveRecMeta(data.meta);
-        // Fit bounds over full comparison (reroute + blocked) — no auto-clear, stays until reset
+        if (data.fleetLine) setFleetDispatchLine(data.fleetLine);
         const allPts = [...data.fullPath, ...data.blockedPath];
         setMapFlyTo({ lat: allPts[0][0], lng: allPts[0][1], zoom: 0, seq: ++flySeq.current, fitPts: allPts });
       }
+      // spotlight the fleet truck on the map too
       const fleetMatch = rec.evidence?.fleetMatch;
       if (fleetMatch?.fleet) {
         const fleetObj = fleets.find(f => f.assetId === fleetMatch.fleet.assetId);
@@ -774,6 +800,7 @@ export default function Dashboard() {
               rerouteLabels={rerouteLabels}
               blockedPath={blockedPath}
               activeRecMeta={activeRecMeta}
+              fleetDispatchLine={fleetDispatchLine}
               flyTo={mapFlyTo}
               spotlight={mapSpotlight}
             />
@@ -807,7 +834,7 @@ export default function Dashboard() {
                         setRerouteLabels(data.labels);
                         setBlockedPath(data.blockedPath);
                         setActiveRecMeta(data.meta);
-                        // Fit both paths in view — no auto-clear timeout
+                        if (data.fleetLine) setFleetDispatchLine(data.fleetLine);
                         const allPts = [...data.fullPath, ...data.blockedPath];
                         setMapFlyTo({ lat: allPts[0][0], lng: allPts[0][1], zoom: 0, seq: ++flySeq.current, fitPts: allPts });
                       } else if (disruptions[0]?.geometry) {

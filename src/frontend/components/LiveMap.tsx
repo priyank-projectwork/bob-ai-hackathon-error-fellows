@@ -292,6 +292,7 @@ interface LiveMapProps {
   rerouteLabels?: string[];
   blockedPath?: [number, number][];
   activeRecMeta?: RecMeta | null;
+  fleetDispatchLine?: { from: [number,number]; to: [number,number]; assetId: string } | null;
   flyTo?: { lat:number; lng:number; zoom?:number; seq?:number; fitPts?: [number,number][] } | null;
   spotlight?: { lat:number; lng:number; label:string; type:string } | null;
 }
@@ -301,7 +302,7 @@ interface LiveMapProps {
 export default function LiveMap({
   disruptions, shipments, fleets,
   rerouteShipmentId, reroutePath, rerouteLabels,
-  blockedPath, activeRecMeta,
+  blockedPath, activeRecMeta, fleetDispatchLine,
   flyTo, spotlight,
 }: LiveMapProps) {
   const mapRef = useRef<L.Map | null>(null);
@@ -387,40 +388,59 @@ export default function LiveMap({
           );
         })}
 
-        {/* ── BLOCKED route: original path now obstructed (red thick) ─────────
-            Drawn ONLY when showing a reroute comparison. Represents the route
-            the shipment WAS on before the disruption hit it.
+        {/* ── BLOCKED route (red) ───────────────────────────────────────────
+            Full origin → destination corridor that is now obstructed.
+            Shown only during comparison mode.
         ─────────────────────────────────────────────────────────────────── */}
         {showComparison && safeBlockedPath.length >= 2 && (<>
-          {/* Red glow layer for blocked route */}
+          {/* Red solid line */}
           <Polyline positions={safeBlockedPath}
-            pathOptions={{ color:"#ef4444", weight:10, opacity:0.08 }} />
-          {/* Bold red line for blocked route */}
-          <Polyline positions={safeBlockedPath}
-            pathOptions={{ color:"#ef4444", weight:3, opacity:0.7, dashArray:"4 5" }} />
+            pathOptions={{ color:"#ef4444", weight:3, opacity:0.75, dashArray:"5 6" }} />
+          {/* Origin pin (red) */}
+          <Marker position={safeBlockedPath[0]}
+            icon={makeWaypointIcon(activeRecMeta?.origin ?? "Origin", "#ef4444")}
+            zIndexOffset={400}
+          />
+          {/* Destination pin (red/dim) — only if not overlapping reroute dest */}
+          <Marker position={safeBlockedPath[safeBlockedPath.length - 1]}
+            icon={makeWaypointIcon(activeRecMeta?.destination ?? "Dest", "#f87171")}
+            zIndexOffset={400}
+          />
         </>)}
 
-        {/* ── AI REROUTE path (animated green) ─────────────────────────────── */}
+        {/* ── AI REROUTE path (animated green, single line only) ───────────── */}
         {showComparison && (<>
-          {/* Glow layer */}
+          {/* Single animated dashed march — NO glow polyline (was causing double-line) */}
           <Polyline positions={safeReroutePath}
-            pathOptions={{ color:"#34d399", weight:8, opacity:0, className:"reroute-glow" }} />
-          {/* Animated dashed march */}
-          <Polyline positions={safeReroutePath}
-            pathOptions={{ color:"#34d399", weight:2.5, opacity:1,
+            pathOptions={{ color:"#34d399", weight:3, opacity:1,
               dashArray:"10 6", className:"reroute-march" }} />
-          {/* Waypoint markers */}
+          {/* Waypoint pins — labelled by city name */}
           {rerouteWaypoints.map((wp, i) => (
             <Marker key={`wp-${i}`} position={wp.pos}
               icon={makeWaypointIcon(
                 wp.label,
-                i === 0 ? "#3b82f6"
-                : i === rerouteWaypoints.length - 1 ? "#34d399"
-                : "#f59e0b"
+                i === 0 ? "#60a5fa"                              // origin = blue
+                : i === rerouteWaypoints.length - 1 ? "#34d399" // destination = green
+                : "#f59e0b"                                      // via waypoint = amber
               )}
               zIndexOffset={500}
             />
           ))}
+        </>)}
+
+        {/* ── Fleet dispatch line ───────────────────────────────────────────
+            Dotted cyan line from idle truck → affected shipment current position.
+            Visualises "this truck is being dispatched to intercept the shipment".
+        ─────────────────────────────────────────────────────────────────── */}
+        {showComparison && fleetDispatchLine && (<>
+          {/* Dotted cyan line */}
+          <Polyline positions={[fleetDispatchLine.from, fleetDispatchLine.to]}
+            pathOptions={{ color:"#22d3ee", weight:1.5, opacity:0.7, dashArray:"4 6" }} />
+          {/* Fleet truck pin */}
+          <Marker position={fleetDispatchLine.from}
+            icon={makeWaypointIcon(fleetDispatchLine.assetId, "#22d3ee")}
+            zIndexOffset={450}
+          />
         </>)}
 
         {/* ── Shipment markers ─────────────────────────────────────────────── */}
@@ -604,8 +624,10 @@ export default function LiveMap({
             {/* Footer hint */}
             <div className="px-3 py-1.5 border-t border-slate-800/40 bg-slate-900/20">
               <div className="text-[8px] text-slate-700">
-                <span className="text-red-500/60">━━</span> blocked route &nbsp;
-                <span className="text-emerald-400/60">╌╌</span> AI reroute &nbsp;·&nbsp; approve in Action Center →
+                <span className="text-red-500/60">━━</span> blocked &nbsp;
+                <span className="text-emerald-400/60">╌╌</span> AI reroute &nbsp;
+                {fleetDispatchLine && <><span className="text-cyan-400/60">╌╌</span> fleet dispatch &nbsp;</>}
+                ·&nbsp; approve in Action Center →
               </div>
             </div>
           </div>
@@ -640,12 +662,18 @@ export default function LiveMap({
             <div className="pt-1 border-t border-slate-800 mt-1 space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="w-4 border-t-2 border-red-500/70 border-dashed flex-shrink-0" />
-                <span className="text-[9px] text-red-400/80">Blocked original route</span>
+                <span className="text-[9px] text-red-400/80">Blocked route</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-4 border-t-2 border-dashed border-emerald-400 flex-shrink-0" />
-                <span className="text-[9px] text-emerald-400 font-semibold">AI reroute (new path)</span>
+                <span className="text-[9px] text-emerald-400 font-semibold">AI reroute</span>
               </div>
+              {fleetDispatchLine && (
+                <div className="flex items-center gap-2">
+                  <span className="w-4 border-t border-dashed border-cyan-400/70 flex-shrink-0" />
+                  <span className="text-[9px] text-cyan-400/80">Fleet dispatch</span>
+                </div>
+              )}
             </div>
           )}
         </div>
