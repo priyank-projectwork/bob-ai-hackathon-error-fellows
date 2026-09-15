@@ -313,7 +313,7 @@ export default function Dashboard() {
 
   // Map
   const flySeq = useRef(0);
-  const [mapFlyTo, setMapFlyTo]         = useState<{ lat: number; lng: number; zoom?: number; seq?: number } | null>(null);
+  const [mapFlyTo, setMapFlyTo]         = useState<{ lat: number; lng: number; zoom?: number; seq?: number; fitPts?: [number,number][] } | null>(null);
   const [mapSpotlight, setMapSpotlight] = useState<{ lat: number; lng: number; label: string; type: string } | null>(null);
   const [rerouteShipmentId, setRerouteShipmentId] = useState<string | null>(null);
   const [reroutePath, setReroutePath]   = useState<[number, number][]>([]);
@@ -524,13 +524,17 @@ export default function Dashboard() {
     setIsResetting(false);
   };
 
-  // Helper: build the blocked (original) path for a shipment: currentLocation → destination
+  // Helper: build the blocked (original) path — full origin → destination so it's always visible
+  // Even if the shipment is near the destination, we show the whole planned corridor in red.
   const buildBlockedPath = (ship: any): [number, number][] => {
     if (!ship) return [];
-    const startPt = ship.currentLocation ? [ship.currentLocation.lat, ship.currentLocation.lng] as [number, number] : null;
-    const destPt  = ship.destination ? CITY_COORDS[ship.destination] ?? null : null;
-    if (startPt && destPt) return [startPt, destPt];
-    return startPt ? [startPt] : [];
+    const originPt = ship.origin ? CITY_COORDS[ship.origin] ?? null : null;
+    const destPt   = ship.destination ? CITY_COORDS[ship.destination] ?? null : null;
+    if (originPt && destPt) return [originPt, destPt];
+    // fallback: current location → destination
+    const curPt = ship.currentLocation ? [ship.currentLocation.lat, ship.currentLocation.lng] as [number, number] : null;
+    if (curPt && destPt) return [curPt, destPt];
+    return [];
   };
 
   // Helper: build reroute path + labels + recMeta from a recommendation
@@ -580,11 +584,9 @@ export default function Dashboard() {
         setRerouteLabels(data.labels);
         setBlockedPath(data.blockedPath);
         setActiveRecMeta(data.meta);
-        setMapFlyTo({ lat: data.fullPath[0][0], lng: data.fullPath[0][1], zoom: 5, seq: ++flySeq.current });
-        setTimeout(() => {
-          setRerouteShipmentId(null); setReroutePath([]); setRerouteLabels([]);
-          setBlockedPath([]); setActiveRecMeta(null);
-        }, 30000);
+        // Fit bounds over full comparison (reroute + blocked) — no auto-clear, stays until reset
+        const allPts = [...data.fullPath, ...data.blockedPath];
+        setMapFlyTo({ lat: allPts[0][0], lng: allPts[0][1], zoom: 0, seq: ++flySeq.current, fitPts: allPts });
       }
       const fleetMatch = rec.evidence?.fleetMatch;
       if (fleetMatch?.fleet) {
@@ -592,7 +594,6 @@ export default function Dashboard() {
         if (fleetObj?.currentLocation) {
           const { lat, lng } = fleetObj.currentLocation;
           setMapSpotlight({ lat, lng, label: fleetMatch.fleet.assetId, type: "fleet" });
-          setTimeout(() => setMapSpotlight(null), 8000);
         }
       }
     } catch (e) { console.error("approve failed", e); }
@@ -806,12 +807,9 @@ export default function Dashboard() {
                         setRerouteLabels(data.labels);
                         setBlockedPath(data.blockedPath);
                         setActiveRecMeta(data.meta);
-                        const midIdx = Math.floor(data.fullPath.length / 2);
-                        setMapFlyTo({ lat: data.fullPath[midIdx][0], lng: data.fullPath[midIdx][1], zoom: 4, seq: ++flySeq.current });
-                        setTimeout(() => {
-                          setRerouteShipmentId(null); setReroutePath([]); setRerouteLabels([]);
-                          setBlockedPath([]); setActiveRecMeta(null);
-                        }, 30000);
+                        // Fit both paths in view — no auto-clear timeout
+                        const allPts = [...data.fullPath, ...data.blockedPath];
+                        setMapFlyTo({ lat: allPts[0][0], lng: allPts[0][1], zoom: 0, seq: ++flySeq.current, fitPts: allPts });
                       } else if (disruptions[0]?.geometry) {
                         const g = disruptions[0].geometry;
                         setMapFlyTo({ lat: g.lat, lng: g.lng, zoom: 7, seq: ++flySeq.current });

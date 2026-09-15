@@ -145,14 +145,20 @@ function FitBoundsOnLoad({ shipments }: { shipments: any[] }) {
   return null;
 }
 
-function FlyToController({ target }: { target: { lat:number; lng:number; zoom:number; seq:number } | null }) {
+function FlyToController({ target }: { target: { lat:number; lng:number; zoom:number; seq:number; fitPts?: [number,number][] } | null }) {
   const map = useMap();
   const lastSeq = useRef(-1);
   useEffect(() => {
     if (!target) return;
     if (target.seq === lastSeq.current) return;
     lastSeq.current = target.seq;
-    map.flyTo([target.lat, target.lng], target.zoom, { animate: true, duration: 1.6 });
+    if (target.fitPts && target.fitPts.length >= 2) {
+      // Fit the full set of comparison points with generous padding
+      const bounds = L.latLngBounds(target.fitPts.map(p => L.latLng(p[0], p[1])));
+      map.flyToBounds(bounds.pad(0.22), { animate: true, duration: 1.8, maxZoom: 7 });
+    } else {
+      map.flyTo([target.lat, target.lng], target.zoom || 5, { animate: true, duration: 1.6 });
+    }
   }, [target]); // eslint-disable-line
   return null;
 }
@@ -286,7 +292,7 @@ interface LiveMapProps {
   rerouteLabels?: string[];
   blockedPath?: [number, number][];
   activeRecMeta?: RecMeta | null;
-  flyTo?: { lat:number; lng:number; zoom?:number; seq?:number } | null;
+  flyTo?: { lat:number; lng:number; zoom?:number; seq?:number; fitPts?: [number,number][] } | null;
   spotlight?: { lat:number; lng:number; label:string; type:string } | null;
 }
 
@@ -323,7 +329,7 @@ export default function LiveMap({
   };
 
   const flyTarget = flyTo
-    ? { lat: flyTo.lat, lng: flyTo.lng, zoom: flyTo.zoom ?? 5, seq: flyTo.seq ?? 0 }
+    ? { lat: flyTo.lat, lng: flyTo.lng, zoom: flyTo.zoom ?? 5, seq: flyTo.seq ?? 0, fitPts: flyTo.fitPts }
     : null;
 
   // Build safe waypoints for the reroute path with labels
@@ -340,7 +346,7 @@ export default function LiveMap({
   const showComparison   = !!(rerouteShipmentId && safeReroutePath.length >= 2);
 
   return (
-    <div className="w-full h-[500px] relative z-0">
+    <div className="w-full h-[600px] relative z-0">
       <style>{MAP_STYLES}</style>
 
       <MapContainer
