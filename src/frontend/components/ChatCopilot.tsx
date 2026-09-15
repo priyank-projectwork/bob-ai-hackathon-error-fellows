@@ -74,9 +74,10 @@ export default function ChatCopilot() {
     <>
       {/* FAB */}
       <button
+        data-tour="chat"
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          fixed bottom-6 right-6 z-[100]
+          fixed bottom-6 right-6 z-[99999]
           w-12 h-12 rounded-full shadow-2xl
           flex items-center justify-center
           transition-all duration-200 hover:scale-105

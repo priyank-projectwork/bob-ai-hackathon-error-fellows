@@ -62,7 +62,7 @@ export const TOUR_STEPS = [
     target: "[data-tour='chat']",
     title: "AI Operations Copilot",
     body: "Ask anything in plain English: 'Which shipments are most at risk?', 'Why is this reroute recommended?', 'What's the status of SHIP-101?' — watsonx.ai answers with full live context: current shipments, disruptions, idle fleet, and open excursions.",
-    placement: "top" as const,
+    placement: "left" as const,
   },
 ];
 
