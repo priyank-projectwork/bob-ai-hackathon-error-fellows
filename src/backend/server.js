@@ -67,7 +67,7 @@ eventBus.on("disruption.created", async (disruption) => {
         impactedShipments.push(shipment);
 
         // 3. Optimization & Matching
-        const alternatives = getRouteAlternatives(shipment.origin, shipment.destination, [disruption]);
+        const alternatives = getRouteAlternatives(shipment.origin, shipment.destination, [disruption], shipment.priority);
         const matches = rankFleetMatches(shipment, availableFleets);
 
         let selectedFleet = null;

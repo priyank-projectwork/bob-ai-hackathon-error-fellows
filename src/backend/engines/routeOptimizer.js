@@ -1,8 +1,46 @@
 /**
  * Route Optimizer
  * Graph-based candidate route generation and ranking.
- * Returns ranked alternatives that avoid or reduce disruption exposure.
+ * Returns ranked alternatives scored by risk, cost AND time —
+ * weighted by shipment priority so Critical cargo prioritises speed/safety
+ * while lower-priority cargo optimises for cost.
  */
+
+// ── Priority-aware composite scoring ──────────────────────────────────────────
+// Each route alternative has: riskScore (0-100), costDelta ($), timeDeltaHours
+// We normalise each dimension and combine with priority-dependent weights.
+// Lower composite = better route.
+const PRIORITY_WEIGHTS = {
+  Critical: { risk: 0.60, cost: 0.10, time: 0.30 }, // life-critical cargo: safety first, pay whatever
+  High:     { risk: 0.40, cost: 0.30, time: 0.30 }, // balance all three
+  Medium:   { risk: 0.25, cost: 0.50, time: 0.25 }, // cost is primary driver
+  Low:      { risk: 0.15, cost: 0.65, time: 0.20 }, // cheapest viable option wins
+};
+
+function rankRoutes(alternatives, priority = "Medium") {
+  if (alternatives.length <= 1) return alternatives;
+
+  const weights = PRIORITY_WEIGHTS[priority] || PRIORITY_WEIGHTS.Medium;
+
+  // Normalise each dimension to 0-1 across the candidate set
+  const maxRisk = Math.max(...alternatives.map(r => r.riskScore));
+  const maxCost = Math.max(...alternatives.map(r => Math.abs(r.costDelta)));
+  const maxTime = Math.max(...alternatives.map(r => Math.abs(r.timeDeltaHours)));
+
+  return alternatives
+    .map(route => {
+      const normRisk = maxRisk > 0 ? route.riskScore / maxRisk : 0;
+      // costDelta can be negative (savings) — penalise higher cost
+      const normCost = maxCost > 0 ? Math.abs(route.costDelta) / maxCost : 0;
+      // timeDeltaHours negative = faster = better → invert
+      const timeScore = maxTime > 0 ? (route.timeDeltaHours / maxTime) : 0;
+      const normTime  = (timeScore + 1) / 2; // rescale [-1,1] → [0,1], lower = faster = better
+
+      const composite = (weights.risk * normRisk) + (weights.cost * normCost) + (weights.time * normTime);
+      return { ...route, _composite: composite };
+    })
+    .sort((a, b) => a._composite - b._composite); // ascending: lowest composite = best
+}
 
 // US logistics hub graph — nodes are hubs, edges have cost/time/risk
 const DEMO_GRAPH = {
@@ -40,7 +78,7 @@ const DEMO_GRAPH = {
  * Returns ranked route alternatives for a shipment affected by active disruptions.
  * Each alternative avoids the disruption zone and is scored by risk/cost/time.
  */
-function getRouteAlternatives(origin, destination, activeDisruptions) {
+function getRouteAlternatives(origin, destination, activeDisruptions, priority = "Medium") {
   const disruptionLocations = activeDisruptions.map(d =>
     (d.geometry?.locationName || d.title || "").toLowerCase()
   );
@@ -74,7 +112,7 @@ function getRouteAlternatives(origin, destination, activeDisruptions) {
           riskScore: 25,
           rationale: "MULTI-MODAL: Divert to Oakland (+20h steam north), offload to reefer truck for I-5 south road leg to LA (~8h drive). Fully bypasses LA/Long Beach strike zone. Best if San Diego pier space is congested."
         },
-      ].sort((a, b) => a.riskScore - b.riskScore);
+      ], priority);
     }
 
     // ── Houston → LA: Road truck — LA Port Strike blocks the LA receiving gate ──
@@ -99,7 +137,7 @@ function getRouteAlternatives(origin, destination, activeDisruptions) {
           riskScore: 30,
           rationale: "Northern inland route via I-40 through Albuquerque and Phoenix. Longer but avoids any congestion on I-10 El Paso corridor. Fallback if I-10 El Paso segment is also delayed."
         },
-      ].sort((a, b) => a.riskScore - b.riskScore);
+      ], priority);
     }
 
     // ── New York → LA: Air freight recommended (Critical priority, tight deadline) ──
@@ -123,7 +161,7 @@ function getRouteAlternatives(origin, destination, activeDisruptions) {
         riskScore: 25,
         rationale: "All-road southern bypass: NY → Atlanta → Houston → San Diego, then short road leg to LA inland hub. +18h but eliminates port exposure entirely. Best cost-risk for High priority cargo."
       },
-    ].sort((a, b) => a.riskScore - b.riskScore);
+    ], priority);
   }
 
   // ── Chicago destination disruption (Blizzard) ─────────────────────────────
@@ -145,7 +183,7 @@ function getRouteAlternatives(origin, destination, activeDisruptions) {
         riskScore: 30,
         rationale: "Stage at Philadelphia certified cold storage until blizzard clears. Safest for cold-chain integrity — avoids driving in hazardous conditions."
       }
-    ].sort((a, b) => a.riskScore - b.riskScore);
+    ], priority);
   }
 
   // ── Miami destination disruption (Hurricane) ─────────────────────────────
@@ -167,7 +205,7 @@ function getRouteAlternatives(origin, destination, activeDisruptions) {
         riskScore: 35,
         rationale: "Stage in Orlando, enter Miami post-storm via coastal route. Faster than full hold but weather window must be confirmed before departure."
       }
-    ].sort((a, b) => a.riskScore - b.riskScore);
+    ], priority);
   }
 
   // ── Default: no active disruption on this route ───────────────────────────
@@ -183,4 +221,4 @@ function getRouteAlternatives(origin, destination, activeDisruptions) {
   ];
 }
 
-module.exports = { getRouteAlternatives };
+module.exports = { getRouteAlternatives, rankRoutes, PRIORITY_WEIGHTS };

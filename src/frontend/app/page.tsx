@@ -320,7 +320,7 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
 
           {/* AI FIX row — full reroute with mode icon + cost/time deltas */}
           <div className="px-2.5 py-2 bg-emerald-950/10">
-            <div className="flex items-center gap-1.5 mb-1">
+            <div className="flex items-center gap-1.5 mb-1 flex-wrap">
               <span className="text-[8px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded flex-shrink-0">AI FIX</span>
               <span className={`flex items-center gap-1 ${afterMode.color}`}>
                 {afterMode.icon}
@@ -329,14 +329,24 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
               {afterMode.isMultiModal && (
                 <span className="text-[7px] font-bold uppercase tracking-widest text-violet-400 bg-violet-500/10 px-1 py-0.5 rounded border border-violet-500/20">Multi-Modal</span>
               )}
-              <div className="ml-auto flex items-center gap-2 text-[9px] flex-shrink-0">
-                <span className={alt.costDelta > 0 ? "text-amber-400 font-semibold" : "text-emerald-400"}>
-                  {alt.costDelta > 0 ? `+$${alt.costDelta.toLocaleString()}` : "no extra cost"}
+              {/* Priority-weighted selection hint */}
+              {priority && (
+                <span className="text-[7px] text-slate-600 ml-auto flex-shrink-0">
+                  ranked by {priority === "Critical" ? "safety" : priority === "High" ? "risk+cost" : "cost"}
                 </span>
-                <span className={alt.timeDeltaHours > 0 ? "text-amber-400 font-semibold" : "text-emerald-400 font-semibold"}>
-                  {alt.timeDeltaHours > 0 ? `+${alt.timeDeltaHours}h` : `${Math.abs(alt.timeDeltaHours)}h faster`}
-                </span>
-              </div>
+              )}
+            </div>
+            {/* Cost / time deltas — prominent row */}
+            <div className="flex items-center gap-3 mb-1">
+              <span className={`text-[10px] font-bold tabular-nums ${alt.costDelta > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                {alt.costDelta > 0 ? `+$${alt.costDelta.toLocaleString()}` : "no extra cost"}
+              </span>
+              <span className="text-slate-700 text-[9px]">·</span>
+              <span className={`text-[10px] font-bold tabular-nums ${alt.timeDeltaHours > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                {alt.timeDeltaHours > 0 ? `+${alt.timeDeltaHours}h` : `${Math.abs(alt.timeDeltaHours)}h faster`}
+              </span>
+              <span className="text-slate-700 text-[9px]">·</span>
+              <span className="text-[9px] text-slate-500">Risk {alt.riskScore}/100</span>
             </div>
             <RouteChain route={alt.route} color="text-emerald-300/90" />
           </div>
