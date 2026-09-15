@@ -183,8 +183,8 @@ function getModeInfo(routeStr: string = "", origin: string = ""): { icon: React.
       ),
       label: "Air Freight", color: "text-sky-400",
     };
-  if (r.includes("ocean") || r.includes("port") || r.includes("pacific") || r.includes("vessel") ||
-      origin === "Shanghai" || origin === "Tokyo" || origin === "Singapore")
+  if (r.includes("ocean") || r.includes("sea") || r.includes("port") || r.includes("pacific") || r.includes("vessel") ||
+      origin === "Shanghai" || origin === "Tokyo" || origin === "Singapore" || origin === "Busan")
     return {
       icon: (
         <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

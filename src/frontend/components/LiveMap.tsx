@@ -98,7 +98,7 @@ const alertIcon      = makeIcon("#ef4444",  ALERT_SVG, true);
 function getShipmentIcon(ship: any): L.DivIcon {
   const mode = ship.routeLegs?.[0]?.mode ?? ship.mode ?? "Road";
   const isRisk = (ship.riskScore ?? 0) >= 50;
-  if (mode === "Ocean") return isRisk ? vesselRiskIcon : vesselIcon;
+  if (mode === "Sea" || mode === "Ocean") return isRisk ? vesselRiskIcon : vesselIcon;
   if (mode === "Air")   return planeIcon;
   return isRisk ? roadRiskIcon : roadIcon;
 }

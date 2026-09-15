@@ -193,7 +193,7 @@ const seedData = async () => {
         legEnd:   CITIES.losAngeles,
         etaHours: 18,         // 18h at ~15 knots
         deadlineHours: 24,    // 6h cold-chain slack
-        mode: "Ocean",
+        mode: "Sea",
       },
     ];
 
