@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { io, Socket } from "socket.io-client";
+import { useEffect, useRef, useState } from "react";
+import { io } from "socket.io-client";
 import dynamic from "next/dynamic";
 import ChatCopilot from "../components/ChatCopilot";
 import HistoricalAnalytics from "../components/HistoricalAnalytics";
@@ -9,18 +9,27 @@ import HistoricalAnalytics from "../components/HistoricalAnalytics";
 const LiveMap = dynamic(() => import("../components/LiveMap"), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-[400px] rounded-xl bg-slate-800 animate-pulse border border-slate-700 flex items-center justify-center">
-      <span className="text-slate-500 font-medium">Loading geospatial data...</span>
+    <div className="w-full h-[460px] bg-[#0a0f1a] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-slate-700 border-t-blue-500 rounded-full animate-spin" />
+        <span className="text-slate-600 text-xs font-medium tracking-widest uppercase">Loading map…</span>
+      </div>
     </div>
   ),
 });
+
+function calcZoomForRadius(radiusKm: number): number {
+  const z = Math.floor(Math.log2(40075 / (radiusKm * 2)) - 1);
+  return Math.max(5, Math.min(11, z));
+}
+
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 interface SensorLog {
   shipmentId: string;
   timestamp: string;
   temperatureCelsius: number;
 }
-
 interface AlertData {
   _id: string;
   severity: "Normal" | "Watch" | "High" | "Critical";
@@ -29,7 +38,6 @@ interface AlertData {
   message: string;
   createdAt: string;
 }
-
 interface RecommendationData {
   _id: string;
   entityType: string;
@@ -38,377 +46,813 @@ interface RecommendationData {
   rationale: string;
   score: number;
   confidence?: number;
+  status?: "Pending" | "Approved" | "Rejected" | "Superseded";
   evidence?: {
-    alternateRoute?: { route: string; costDelta: number; timeDeltaHours: number; riskScore: number };
+    alternateRoute?: { route: string; costDelta: number; timeDeltaHours: number; riskScore: number; via?: string[] };
     fleetMatch?: { fleet: { assetId: string; locationName?: string }; matchScore: number; distanceKm: number };
   };
 }
 
+// ── Severity helpers ───────────────────────────────────────────────────────────
+
+const SEV_BADGE: Record<AlertData["severity"], string> = {
+  Critical: "bg-red-500/15 text-red-400 ring-1 ring-red-500/30",
+  High:     "bg-orange-500/15 text-orange-400 ring-1 ring-orange-500/30",
+  Watch:    "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/30",
+  Normal:   "bg-slate-700 text-slate-400",
+};
+const SEV_BORDER: Record<AlertData["severity"], string> = {
+  Critical: "border-red-800/40 bg-red-950/10",
+  High:     "border-orange-800/30 bg-orange-950/10",
+  Watch:    "border-amber-800/30 bg-amber-950/10",
+  Normal:   "border-slate-800 bg-slate-900/20",
+};
+
+// ── Small reusable components ──────────────────────────────────────────────────
+
+function ScoreMeter({ value }: { value: number }) {
+  const color = value >= 75 ? "#f87171" : value >= 50 ? "#fb923c" : value >= 25 ? "#fbbf24" : "#34d399";
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-20 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${value}%`, background: color }} />
+      </div>
+      <span className="text-[11px] font-bold tabular-nums" style={{ color }}>{value}</span>
+    </div>
+  );
+}
+
+function LiveClock() {
+  const [t, setT] = useState("");
+  useEffect(() => {
+    const tick = () => setT(new Date().toLocaleTimeString("en-US", { hour12: false }));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+  if (!t) return null;
+  return <span className="text-[11px] font-mono text-slate-500 tabular-nums">{t}</span>;
+}
+
+function SectionHeader({ title, count, live }: { title: string; count?: number; live?: boolean }) {
+  return (
+    <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{title}</span>
+        {live && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+      </div>
+      {count !== undefined && count > 0 && (
+        <span className="text-[10px] font-bold text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded-full">{count}</span>
+      )}
+    </div>
+  );
+}
+
+function AlertRow({ alert, isNew }: { alert: AlertData; isNew: boolean }) {
+  return (
+    <div className={`flex gap-3 px-3 py-2.5 rounded-lg border text-[11px] leading-snug ${SEV_BORDER[alert.severity]} ${isNew ? "anim-slide-down" : ""}`}>
+      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest flex-shrink-0 h-fit mt-0.5 ${SEV_BADGE[alert.severity]}`}>
+        {alert.severity}
+      </span>
+      <div className="min-w-0">
+        <div className="font-semibold text-slate-200 truncate">{alert.title}</div>
+        <div className="text-slate-500 truncate">{alert.message}</div>
+      </div>
+    </div>
+  );
+}
+
+function SensorRow({ log, isNew }: { log: SensorLog; isNew: boolean }) {
+  const t = log.temperatureCelsius;
+  const over = t > 8, warn = !over && t > 7;
+  return (
+    <div className={`flex items-center justify-between px-3 py-1.5 rounded-lg border
+      ${over ? "border-red-900/40 bg-red-950/10" : warn ? "border-amber-900/30" : "border-slate-800/40"}
+      ${isNew ? "anim-slide-right" : ""}`}>
+      <span className="text-[10px] font-mono text-slate-500 truncate max-w-[90px]">{log.shipmentId}</span>
+      <span className={`text-[12px] font-bold tabular-nums ${over ? "text-red-400" : warn ? "text-amber-400" : "text-emerald-400"}`}>
+        {t.toFixed(1)}°C
+      </span>
+    </div>
+  );
+}
+
+// ── Simulation steps toast ─────────────────────────────────────────────────────
+
+const SIM_STEPS = [
+  "Detecting impact zone…",
+  "Scoring shipment risk…",
+  "Optimising routes…",
+  "Generating AI recommendation…",
+  "Done ✓",
+];
+
+function SimToast({ step, label }: { step: number; label: string }) {
+  if (step < 0) return null;
+  const done = step >= SIM_STEPS.length - 1;
+  return (
+    <div className={`
+      fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999]
+      flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl shadow-black/60
+      border backdrop-blur-md text-[12px] font-semibold
+      ${done ? "bg-emerald-950/90 border-emerald-700/50 text-emerald-300" : "bg-[#0b1424]/95 border-slate-700/60 text-slate-200"}
+    `}>
+      {!done
+        ? <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-600 border-t-blue-400 animate-spin flex-shrink-0" />
+        : <span className="text-emerald-400">✓</span>}
+      <div>
+        <span className="font-bold">{label}</span>
+        <span className="text-slate-500 font-normal ml-2">{SIM_STEPS[Math.min(step, SIM_STEPS.length - 1)]}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Recommendation card with inline expand ────────────────────────────────────
+// "View on map" previews the route path without committing. No modal.
+
+function RecCard({ rec, onPreview, onReject, onApprove }: {
+  rec: RecommendationData;
+  onPreview: () => void;
+  onReject: () => void;
+  onApprove: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const alt   = rec.evidence?.alternateRoute;
+  const fleet = rec.evidence?.fleetMatch;
+  return (
+    <div className="rounded-xl border border-slate-700/40 bg-slate-800/30 overflow-hidden anim-slide-down">
+      {/* Header */}
+      <div className="flex items-start justify-between px-3.5 pt-3 pb-2 border-b border-slate-700/30 gap-2">
+        <div className="min-w-0">
+          <div className="text-[9px] font-bold uppercase tracking-widest text-indigo-400 mb-0.5">{rec.recommendationType}</div>
+          <div className="text-[13px] font-black text-white">{rec.entityId}</div>
+        </div>
+        <div className="flex-shrink-0">
+          <div className="text-[9px] text-slate-600 mb-1 text-right">Risk</div>
+          <ScoreMeter value={rec.score} />
+        </div>
+      </div>
+
+      {/* Rationale — 2 lines collapsed, full when expanded */}
+      <div className="px-3.5 pt-2 pb-1">
+        <p className={`text-[11px] text-slate-400 leading-relaxed ${expanded ? "" : "line-clamp-2"}`}>
+          {rec.rationale}
+        </p>
+        {rec.rationale.length > 120 && (
+          <button
+            onClick={() => setExpanded(e => !e)}
+            className="text-[10px] text-slate-600 hover:text-slate-400 mt-0.5 transition-colors"
+          >
+            {expanded ? "show less" : "show more"}
+          </button>
+        )}
+      </div>
+
+      {/* Evidence — only shown when expanded */}
+      {expanded && (alt || fleet) && (
+        <div className="mx-3.5 mb-2 grid grid-cols-2 gap-2">
+          {alt && (
+            <div className="bg-[#060b14] rounded-lg border border-slate-800 px-2.5 py-2">
+              <div className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider mb-1">Alt Route</div>
+              <div className="text-[10px] text-slate-300 leading-snug mb-1.5">{alt.route}</div>
+              <div className="space-y-0.5 text-[10px]">
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Cost</span>
+                  <span className={alt.costDelta > 0 ? "text-amber-400" : "text-emerald-400"}>
+                    {alt.costDelta === 0 ? "—" : alt.costDelta > 0 ? `+$${alt.costDelta.toLocaleString()}` : `-$${Math.abs(alt.costDelta).toLocaleString()}`}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Time</span>
+                  <span className={alt.timeDeltaHours > 0 ? "text-amber-400" : "text-emerald-400"}>
+                    {alt.timeDeltaHours === 0 ? "Same ETA" : alt.timeDeltaHours > 0 ? `+${alt.timeDeltaHours}h` : `${alt.timeDeltaHours}h`}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          {fleet && (
+            <div className="bg-[#060b14] rounded-lg border border-slate-800 px-2.5 py-2">
+              <div className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider mb-1">Fleet</div>
+              <div className="text-[11px] font-bold text-white mb-0.5">{fleet.fleet.assetId}</div>
+              {fleet.fleet.locationName && <div className="text-[10px] text-slate-500 mb-1">{fleet.fleet.locationName}</div>}
+              <div className="text-[10px] text-slate-600">{fleet.distanceKm} km away</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Compact evidence strip when collapsed */}
+      {!expanded && (alt || fleet) && (
+        <div className="flex gap-3 px-3.5 pb-2 text-[10px]">
+          {alt && <span className="text-indigo-400/70 truncate">→ {alt.route.split("→").pop()?.trim()}</span>}
+          {fleet && <span className="text-emerald-400/70 flex-shrink-0">{fleet.fleet.assetId}</span>}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2 px-3.5 pb-3 pt-1 border-t border-slate-800/50">
+        {/* "View on map" — previews route path, flies map, no commit */}
+        <button
+          onClick={onPreview}
+          className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold text-slate-500 hover:text-sky-400 border border-slate-800 hover:border-sky-900/50 rounded-lg transition-colors"
+          title="Preview route on map"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path d="M1 6s4-4 11-4 11 4 11 4-4 4-11 4-11-4-11-4z"/><circle cx="12" cy="6" r="2"/>
+          </svg>
+          Map
+        </button>
+        <button
+          onClick={onReject}
+          className="px-2.5 py-1.5 text-[10px] font-semibold text-slate-500 hover:text-red-400 border border-slate-800 hover:border-red-900/40 rounded-lg transition-colors"
+        >
+          Reject
+        </button>
+        <button
+          onClick={onApprove}
+          className="flex-1 py-1.5 text-[11px] font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors shadow-lg shadow-indigo-600/20"
+        >
+          ✓ Approve
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+
 export default function Dashboard() {
-  const [kpis, setKpis] = useState({ activeDisruptions: 0, idleAssets: 0, criticalShipments: 0, openColdChainAlerts: 0 });
-  const [alerts, setAlerts] = useState<AlertData[]>([]);
-  const [recommendations, setRecommendations] = useState<RecommendationData[]>([]);
-  const [auditEvents, setAuditEvents] = useState<any[]>([]);
-  const [shipments, setShipments] = useState<any[]>([]);
-  const [fleets, setFleets] = useState<any[]>([]);
-  const [disruptions, setDisruptions] = useState<any[]>([]);
-  const [logs, setLogs] = useState<SensorLog[]>([]);
-  const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [isTriggering, setIsTriggering] = useState<boolean>(false);
-  
-  // Mock User Session
-  const currentUser = "Operations Control Tower Manager";
+  const [kpis, setKpis]                 = useState({ activeDisruptions: 0, idleAssets: 0, criticalShipments: 0, openColdChainAlerts: 0 });
+  const [alerts, setAlerts]             = useState<AlertData[]>([]);
+  const [newAlertIds, setNewAlertIds]   = useState<Set<string>>(new Set());
+  const [recommendations, setRecs]      = useState<RecommendationData[]>([]);
+  const [auditEvents, setAudit]         = useState<any[]>([]);
+  const [shipments, setShipments]       = useState<any[]>([]);
+  const [fleets, setFleets]             = useState<any[]>([]);
+  const [disruptions, setDisruptions]   = useState<any[]>([]);
+  const [logs, setLogs]                 = useState<SensorLog[]>([]);
+  const [newLogIds, setNewLogIds]       = useState<Set<string>>(new Set());
+  const [isConnected, setIsConnected]   = useState(false);
+  const [isResetting, setIsResetting]   = useState(false);
+
+  // Simulation state — which scenario is currently running
+  const [activeScenario, setActiveScenario] = useState<string | null>(null); // key of the live disruption
+  const [simKey, setSimKey]                 = useState<string | null>(null); // key while pipeline is running
+  const [simStep, setSimStep]               = useState(-1);
+  const [simLabel, setSimLabel]             = useState("");
+
+  // Map
+  const flySeq = useRef(0);
+  const [mapFlyTo, setMapFlyTo]         = useState<{ lat: number; lng: number; zoom?: number; seq?: number } | null>(null);
+  const [mapSpotlight, setMapSpotlight] = useState<{ lat: number; lng: number; label: string; type: string } | null>(null);
+  const [rerouteShipmentId, setRerouteShipmentId] = useState<string | null>(null);
+  const [reroutePath, setReroutePath]   = useState<[number, number][]>([]);
+  const [rerouteLabels, setRerouteLabels] = useState<string[]>([]);
+
+  const CITY_COORDS: Record<string, [number, number]> = {
+    "New York": [40.71, -74.01], "Los Angeles": [34.05, -118.24], "Chicago": [41.88, -87.63],
+    "Atlanta": [33.75, -84.39],  "Houston": [29.76, -95.37],      "Miami": [25.77, -80.19],
+    "Denver": [39.74, -104.98],  "Dallas": [32.78, -96.80],       "Philadelphia": [39.95, -75.16],
+    "St. Louis": [38.63, -90.2], "San Diego": [32.72, -117.16],   "Las Vegas": [36.17, -115.14],
+    "Orlando": [28.54, -81.38],  "Atlanta Cold Storage": [33.75, -84.45],
+  };
+
+  // ── Scenario definitions ───────────────────────────────────────────────────
+
+  const scenarios = [
+    {
+      key: "la",      label: "LA Port Strike",  type: "Port Strike", location: "Los Angeles",
+      description: "Congestion at LA/Long Beach — affects 2 vaccine shipments",
+      // colours per state
+      idleClass:    "border-slate-800 bg-slate-900/20 text-slate-500",
+      activeClass:  "border-rose-500/60 bg-rose-500/10 text-rose-300 ring-1 ring-rose-500/20",
+      runningClass: "border-rose-400/80 bg-rose-500/15 text-rose-200 ring-2 ring-rose-400/30",
+      dot:  "bg-rose-500",
+      text: "text-rose-400",
+    },
+    {
+      key: "chicago", label: "Chicago Blizzard", type: "Blizzard",   location: "Chicago",
+      description: "I-90/I-94 corridor blocked — 1 critical shipment held",
+      idleClass:    "border-slate-800 bg-slate-900/20 text-slate-500",
+      activeClass:  "border-sky-500/60 bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/20",
+      runningClass: "border-sky-400/80 bg-sky-500/15 text-sky-200 ring-2 ring-sky-400/30",
+      dot:  "bg-sky-400",
+      text: "text-sky-400",
+    },
+    {
+      key: "miami",   label: "Miami Hurricane",  type: "Hurricane",   location: "Miami",
+      description: "Mandatory hold — cold storage at Atlanta staged",
+      idleClass:    "border-slate-800 bg-slate-900/20 text-slate-500",
+      activeClass:  "border-teal-500/60 bg-teal-500/10 text-teal-300 ring-1 ring-teal-500/20",
+      runningClass: "border-teal-400/80 bg-teal-500/15 text-teal-200 ring-2 ring-teal-400/30",
+      dot:  "bg-teal-400",
+      text: "text-teal-400",
+    },
+  ] as const;
+
+  // ── Fetch + socket ──────────────────────────────────────────────────────────
+
+  const fetchAll = async () => {
+    try {
+      const [locRes, cmdRes, auditRes] = await Promise.all([
+        fetch("http://127.0.0.1:4000/api/locations"),
+        fetch("http://127.0.0.1:4000/api/v1/command-center"),
+        fetch("http://127.0.0.1:4000/api/v1/audit"),
+      ]);
+      const loc   = await locRes.json();
+      const cmd   = await cmdRes.json();
+      const audit = await auditRes.json();
+      setShipments(loc.shipments     || []);
+      setFleets(loc.fleets           || []);
+      const activeDis = (loc.disruptions || []).filter((d: any) => d.status === "Active" || !d.status);
+      setDisruptions(activeDis);
+      setKpis(cmd.kpis);
+      setAlerts(cmd.alerts           || []);
+      setRecs(cmd.recommendations    || []);
+      setAudit(audit.events          || []);
+      // Restore which scenario card is "active" from DB state
+      const activeD = activeDis[0];
+      if (activeD) {
+        const match = scenarios.find(s => s.type === activeD.type);
+        if (match) setActiveScenario(match.key);
+      } else {
+        setActiveScenario(null);
+      }
+    } catch (e) { console.error("fetch failed", e); }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [locRes, cmdRes, auditRes] = await Promise.all([
-          fetch("http://127.0.0.1:4000/api/locations"),
-          fetch("http://127.0.0.1:4000/api/v1/command-center"),
-          fetch("http://127.0.0.1:4000/api/v1/audit")
-        ]);
-        
-        const locData = await locRes.json();
-        const cmdData = await cmdRes.json();
-        const auditData = await auditRes.json();
-        
-        setShipments(locData.shipments || []);
-        setFleets(locData.fleets || []);
-        setDisruptions(locData.disruptions || []);
-        
-        setKpis(cmdData.kpis);
-        setAlerts(cmdData.alerts);
-        setRecommendations(cmdData.recommendations);
-        setAuditEvents(auditData.events || []);
-      } catch (e) {
-        console.error("Failed to fetch dashboard data:", e);
-      }
-    };
-    fetchData();
+    fetchAll();
 
     const socket = io("http://127.0.0.1:4000");
-
-    socket.on("connect", () => setIsConnected(true));
+    socket.on("connect",    () => setIsConnected(true));
     socket.on("disconnect", () => setIsConnected(false));
 
-    socket.on("temperatureUpdate", (newLog: SensorLog) => {
-      setLogs((prev) => [newLog, ...prev].slice(0, 15));
+    socket.on("temperatureUpdate", (log: SensorLog) => {
+      const key = `${log.shipmentId}-${log.timestamp}`;
+      setLogs(prev => [log, ...prev].slice(0, 20));
+      setNewLogIds(prev => {
+        const s = new Set(prev); s.add(key);
+        setTimeout(() => setNewLogIds(p => { const n = new Set(p); n.delete(key); return n; }), 2000);
+        return s;
+      });
     });
 
-    socket.on("telemetry.alert", (alertData: AlertData) => {
-      setAlerts((prev) => [alertData, ...prev]);
+    socket.on("telemetry.alert", (a: AlertData) => {
+      setAlerts(prev => [a, ...prev]);
+      setNewAlertIds(prev => {
+        const s = new Set(prev); s.add(a._id);
+        setTimeout(() => setNewAlertIds(p => { const n = new Set(p); n.delete(a._id); return n; }), 3000);
+        return s;
+      });
       setKpis(prev => ({ ...prev, openColdChainAlerts: prev.openColdChainAlerts + 1 }));
     });
 
-    socket.on("disruption.updated", (data: any) => {
-      setDisruptions(prev => {
-        const exists = prev.find(d => d._id === data.disruption._id);
-        if (exists) return prev;
-        return [data.disruption, ...prev];
-      });
-      setKpis(prev => ({ ...prev, activeDisruptions: prev.activeDisruptions + 1 }));
+    // Backend resolved previous scenario and wiped recs
+    socket.on("scenario.reset", () => {
+      setRecs([]);
+      setDisruptions([]);
+      setActiveScenario(null);
+      setRerouteShipmentId(null);
+      setReroutePath([]);
+      setRerouteLabels([]);
     });
-    
+
+    socket.on("disruption.updated", (data: any) => {
+      setDisruptions([data.disruption]); // always exactly 1 active
+      if (data.disruption?.geometry) {
+        const r = data.disruption.geometry.radius || 250;
+        const z = calcZoomForRadius(r);
+        setMapFlyTo({ lat: data.disruption.geometry.lat, lng: data.disruption.geometry.lng, zoom: z, seq: ++flySeq.current });
+      }
+      setSimStep(s => s < 2 ? 2 : s);
+    });
+
     socket.on("recommendation.created", (rec: RecommendationData) => {
-      setRecommendations(prev => [rec, ...prev]);
+      setRecs(prev => {
+        // Replace any existing pending rec for the same shipment
+        const without = prev.filter(r => !(r.entityId === rec.entityId && (!r.status || r.status === "Pending")));
+        return [rec, ...without];
+      });
+      setSimStep(SIM_STEPS.length - 1);
+      setTimeout(() => { setSimKey(null); setSimStep(-1); }, 2500);
     });
 
     socket.on("action.completed", (data: any) => {
-      setRecommendations(prev => prev.filter(r => r._id !== data.recommendation._id));
-      // Refresh audit trail
-      fetch("http://127.0.0.1:4000/api/v1/audit")
-        .then(r => r.json())
-        .then(d => setAuditEvents(d.events || []))
-        .catch(() => {});
+      setRecs(prev => prev.filter(r => r._id !== data.recommendation._id));
+      fetch("http://127.0.0.1:4000/api/v1/audit").then(r => r.json()).then(d => setAudit(d.events || [])).catch(() => {});
+      fetch("http://127.0.0.1:4000/api/v1/command-center").then(r => r.json()).then(d => setKpis(d.kpis)).catch(() => {});
     });
 
-    return () => {
-      socket.disconnect();
-    };
-  }, []);
+    return () => { socket.disconnect(); };
+  }, []); // eslint-disable-line
 
-  const handleTriggerDisruption = async (disruptionType: string, location: string) => {
-    setIsTriggering(true);
-    try {
-      await fetch("http://127.0.0.1:4000/api/disruptions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ disruptionType, location }),
-      });
-    } catch (error) {
-      console.error("Error triggering disruption:", error);
-    } finally {
-      setIsTriggering(false);
-    }
+  // ── Actions ────────────────────────────────────────────────────────────────
+
+  const triggerDisruption = async (type: string, location: string, key: string) => {
+    if (simKey !== null) return;
+
+    // Instantly clear previous scenario state so Action Center empties immediately
+    setRecs([]);
+    setDisruptions([]);
+    setActiveScenario(key);
+    setRerouteShipmentId(null);
+    setReroutePath([]);
+    setRerouteLabels([]);
+
+    setSimKey(key);
+    setSimLabel(scenarios.find(s => s.key === key)?.label ?? key);
+    setSimStep(0);
+
+    const coords = CITY_COORDS[location];
+    if (coords) setMapFlyTo({ lat: coords[0], lng: coords[1], zoom: 9, seq: ++flySeq.current });
+
+    setTimeout(() => setSimStep(s => s < 1 ? 1 : s), 700);
+    setTimeout(() => setSimStep(s => s < 2 ? 2 : s), 1400);
+    setTimeout(() => setSimStep(s => s < 3 ? 3 : s), 2200);
+
+    await fetch("http://127.0.0.1:4000/api/disruptions", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ disruptionType: type, location }),
+    }).catch(() => {});
+
+    // Safety fallback — if socket never fires within 15s
+    setTimeout(() => {
+      setSimStep(s => s >= 0 ? SIM_STEPS.length - 1 : s);
+      setTimeout(() => { setSimKey(null); setSimStep(-1); }, 3000);
+    }, 15000);
   };
 
-  const approveRecommendation = async (id: string) => {
-    try {
-      await fetch(`http://127.0.0.1:4000/api/v1/recommendations/${id}/approve`, {
-        method: "POST"
-      });
-    } catch (err) {
-      console.error("Failed to approve action", err);
-    }
+  const handleReset = async () => {
+    setIsResetting(true);
+    // Clear UI immediately — don't wait for fetch
+    setRecs([]);
+    setDisruptions([]);
+    setActiveScenario(null);
+    setSimKey(null);
+    setSimStep(-1);
+    setRerouteShipmentId(null);
+    setReroutePath([]);
+    setRerouteLabels([]);
+    await fetch("http://127.0.0.1:4000/api/v1/reset", { method: "POST" }).catch(() => {});
+    // Re-fetch to sync KPIs / shipments from DB
+    await fetchAll();
+    setIsResetting(false);
   };
 
-  const rejectRecommendation = async (id: string) => {
+  const approveRec = async (rec: RecommendationData) => {
     try {
-      await fetch(`http://127.0.0.1:4000/api/v1/recommendations/${id}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "Manually rejected by operator" })
-      });
-    } catch (err) {
-      console.error("Failed to reject action", err);
-    }
+      await fetch(`http://127.0.0.1:4000/api/v1/recommendations/${rec._id}/approve`, { method: "POST" });
+      const alt = rec.evidence?.alternateRoute;
+      const fleetMatch = rec.evidence?.fleetMatch;
+      if (alt?.via?.length) {
+        const ship = shipments.find(f => f.shipmentId === rec.entityId);
+        const destName = ship?.destination;
+
+        const startPt: [number, number] | null = ship?.currentLocation
+          ? [ship.currentLocation.lat, ship.currentLocation.lng]
+          : null;
+        const viaPts = (alt.via as string[]).map(v => CITY_COORDS[v]).filter(Boolean) as [number, number][];
+        const destPt = destName ? CITY_COORDS[destName] ?? null : null;
+
+        const fullPath: [number, number][] = [
+          ...(startPt ? [startPt] : []),
+          ...viaPts,
+          ...(destPt ? [destPt] : []),
+        ];
+        const labels = [
+          rec.entityId,
+          ...(alt.via as string[]),
+          ...(destName ? [destName] : []),
+        ];
+
+        if (fullPath.length >= 2) {
+          setRerouteShipmentId(rec.entityId);
+          setReroutePath(fullPath);
+          setRerouteLabels(labels);
+          setMapFlyTo({ lat: fullPath[0][0], lng: fullPath[0][1], zoom: 7, seq: ++flySeq.current });
+          setTimeout(() => { setRerouteShipmentId(null); setReroutePath([]); setRerouteLabels([]); }, 30000);
+        }
+      }
+      if (fleetMatch?.fleet) {
+        const fleetObj = fleets.find(f => f.assetId === fleetMatch.fleet.assetId);
+        if (fleetObj?.currentLocation) {
+          const { lat, lng } = fleetObj.currentLocation;
+          setMapFlyTo({ lat, lng, zoom: 10, seq: ++flySeq.current });
+          setMapSpotlight({ lat, lng, label: fleetMatch.fleet.assetId, type: "fleet" });
+          setTimeout(() => setMapSpotlight(null), 8000);
+        }
+      }
+    } catch (e) { console.error("approve failed", e); }
   };
+
+  const rejectRec = async (id: string) => {
+    await fetch(`http://127.0.0.1:4000/api/v1/recommendations/${id}/reject`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "Manually rejected by operator" }),
+    }).catch(() => {});
+    setRecs(prev => prev.filter(r => r._id !== id));
+  };
+
+  const pendingRecs = recommendations.filter(r => !r.status || r.status === "Pending");
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 p-8 font-sans">
-      <header className="mb-8 border-b border-slate-700 pb-4 flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Cold Chain Monitor</h1>
-          <p className="text-slate-400 mt-1">
-            Live IoT Telemetry & AI Disruption Assistant — <span className="text-blue-400">{currentUser}</span>
-          </p>
-        </div>
+    <div className="min-h-screen bg-[#060b14] text-slate-100 font-sans">
 
-        <div className="flex items-center gap-6">
-          <div className="flex flex-col sm:flex-row gap-4 items-center">
-            <div className="text-sm text-slate-400 font-medium">Scenario Triggers:</div>
-            <button
-              onClick={() => handleTriggerDisruption("Port Strike", "Los Angeles")}
-              disabled={isTriggering}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:bg-rose-800 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
-            >
-              {isTriggering ? "Triggering..." : "⚠️ LA Port Strike"}
-            </button>
-            <button
-              onClick={() => handleTriggerDisruption("Blizzard", "Chicago")}
-              disabled={isTriggering}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
-            >
-              {isTriggering ? "Triggering..." : "❄️ Chicago Blizzard"}
-            </button>
-            <button
-              onClick={() => handleTriggerDisruption("Hurricane", "Miami")}
-              disabled={isTriggering}
-              className="px-4 py-2 bg-teal-600 hover:bg-teal-500 disabled:bg-teal-800 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
-            >
-              {isTriggering ? "Triggering..." : "🌪️ Miami Hurricane"}
-            </button>
+      {/* ══ NAV ════════════════════════════════════════════════════════════════ */}
+      <header className="sticky top-0 z-50 border-b border-slate-800/60 bg-[#060b14]/92 backdrop-blur-lg">
+        <div className="max-w-[1600px] mx-auto px-5 flex items-center justify-between gap-4" style={{ height: 52 }}>
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/30">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M19.07 4.93 4.93 19.07" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <span className="text-sm font-bold text-white tracking-tight">ColdChain<span className="text-blue-500">AI</span></span>
+            <span className="hidden md:inline text-[9px] font-bold uppercase tracking-[0.15em] text-slate-700 border border-slate-800 rounded px-1.5 py-0.5">Command Center</span>
           </div>
-
-          <div className="flex items-center gap-2 border-l border-slate-700 pl-6">
-            <div className={`w-3 h-3 rounded-full ${isConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`}></div>
-            <span className="text-sm font-medium">
-              {isConnected ? "Live Connection" : "Disconnected"}
-            </span>
+          <div className="flex items-center gap-3">
+            <LiveClock />
+            <div className="h-4 border-l border-slate-800" />
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${isConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
+              <span className={`text-[11px] font-semibold ${isConnected ? "text-emerald-400" : "text-red-400"}`}>
+                {isConnected ? "Live" : "Offline"}
+              </span>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm">
-          <div className="text-sm text-slate-400 mb-1">Active Disruptions</div>
-          <div className="text-3xl font-bold text-amber-500">{kpis.activeDisruptions}</div>
-        </div>
-        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm">
-          <div className="text-sm text-slate-400 mb-1">Idle Fleet Assets</div>
-          <div className="text-3xl font-bold text-green-400">{kpis.idleAssets}</div>
-        </div>
-        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm">
-          <div className="text-sm text-slate-400 mb-1">Critical Shipments</div>
-          <div className="text-3xl font-bold text-red-500">{kpis.criticalShipments}</div>
-        </div>
-        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm">
-          <div className="text-sm text-slate-400 mb-1">Cold Chain Alerts</div>
-          <div className="text-3xl font-bold text-blue-400">{kpis.openColdChainAlerts}</div>
-        </div>
-      </div>
+      {/* ══ MAIN ════════════════════════════════════════════════════════════════ */}
+      <main className="max-w-[1600px] mx-auto px-5 py-6 space-y-6">
 
-      <div className="mb-8">
-        <LiveMap disruptions={disruptions} shipments={shipments} fleets={fleets} />
-      </div>
+        {/* ── KPI row ─────────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: "Active Disruptions",  value: disruptions.filter(d => d.status === "Active" || !d.status).length, color: "text-amber-400" },
+            { label: "Idle Fleet Assets",   value: kpis.idleAssets,          color: "text-emerald-400" },
+            { label: "Critical Shipments",  value: kpis.criticalShipments,   color: "text-red-400" },
+            { label: "Cold Chain Alerts",   value: kpis.openColdChainAlerts, color: "text-blue-400" },
+          ].map(k => (
+            <div key={k.label} className="rounded-xl border border-slate-800/60 bg-slate-900/30 px-4 py-3">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-600 mb-1">{k.label}</div>
+              <div className={`text-2xl font-black tabular-nums ${k.color}`}>{k.value}</div>
+            </div>
+          ))}
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left Column: Action Center */}
-        <div className="lg:col-span-2 space-y-8">
-          
-          <div>
-            <h2 className="text-xl font-semibold mb-4 text-white">AI Action Center</h2>
-            {recommendations.length === 0 ? (
-              <div className="p-8 border border-slate-800 rounded-xl bg-slate-800/50 text-center text-slate-500">
-                No pending actions required. System is operating optimally.
-              </div>
-            ) : (
-              recommendations.map((rec) => (
-                <div key={rec._id} className="p-5 border-l-4 rounded-r-xl bg-slate-800 border-indigo-500 shadow-lg mb-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 block mb-1">
-                        Recommendation: {rec.recommendationType}
+        {/* ── Scenario selector ────────────────────────────────────────────────
+             3 cards, only 1 can be "active" at a time.
+             States:
+               idle     = grey, all equal, all clickable
+               running  = the clicked one lights up with spinner; others dim out
+               active   = the current live disruption, coloured, pulsing dot
+               others   = while one is active, other two are dim/unclickable
+        ──────────────────────────────────────────────────────────────────────── */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Simulate Scenario</span>
+              <span className="text-[10px] text-slate-700">— one active at a time</span>
+            </div>
+            {/* Reset button — only shown when something is active */}
+            {(activeScenario || pendingRecs.length > 0) && (
+              <button
+                onClick={handleReset}
+                disabled={isResetting || simKey !== null}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-white border border-slate-800 hover:border-slate-600 rounded-lg transition-colors disabled:opacity-40"
+              >
+                {isResetting
+                  ? <span className="w-2.5 h-2.5 border border-slate-600 border-t-slate-300 rounded-full animate-spin" />
+                  : <span>↺</span>}
+                Reset
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {scenarios.map(s => {
+              const isRunning  = simKey === s.key;
+              const isActive   = activeScenario === s.key && simKey === null;
+              // While a simulation is in-flight, only block the other 2 cards (not the running one)
+              const isBlocked  = simKey !== null && simKey !== s.key;
+              // Visually dim cards that aren't the current live scenario (but still hoverable)
+              const isDimmed   = !isRunning && !isActive && activeScenario !== null;
+
+              const cardClass  = isRunning ? s.runningClass
+                               : isActive  ? s.activeClass
+                               : s.idleClass;
+
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => !isBlocked ? triggerDisruption(s.type, s.location, s.key) : undefined}
+                  className={`
+                    relative text-left px-4 py-4 rounded-xl border transition-all duration-300
+                    ${cardClass}
+                    ${isBlocked ? "opacity-30 saturate-0 cursor-wait" : "cursor-pointer"}
+                    ${isDimmed && !isBlocked ? "opacity-50 hover:opacity-100" : ""}
+                    ${!isBlocked && !isActive ? "hover:border-slate-500" : ""}
+                  `}
+                >
+                  {/* State indicator top-right */}
+                  <div className="absolute top-3 right-3">
+                    {isRunning && (
+                      <div className="w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin opacity-70" />
+                    )}
+                    {isActive && (
+                      <span className={`text-[9px] font-bold uppercase tracking-widest ${s.text} flex items-center gap-1`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${s.dot} animate-pulse`} />
+                        LIVE
                       </span>
-                      <h3 className="font-bold text-white text-lg">
-                        {rec.entityType} {rec.entityId}
-                      </h3>
-                    </div>
-                    <span className="bg-slate-900 px-3 py-1 rounded-lg text-sm text-slate-300 border border-slate-700">
-                      Risk Score: <span className="font-bold text-amber-500">{rec.score}</span>
-                    </span>
-                  </div>
-                  
-                  <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 mb-3">
-                    <p className="text-sm text-slate-300 leading-relaxed">
-                      {rec.rationale}
-                    </p>
+                    )}
                   </div>
 
-                  {/* Route + Fleet Evidence */}
-                  {rec.evidence && (
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      {rec.evidence.alternateRoute && (
-                        <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-700 text-xs">
-                          <div className="text-indigo-400 font-bold mb-1">🗺 Alternate Route</div>
-                          <div className="text-slate-300">{rec.evidence.alternateRoute.route}</div>
-                          <div className="text-slate-500 mt-1">
-                            {rec.evidence.alternateRoute.costDelta > 0 ? `+$${rec.evidence.alternateRoute.costDelta}` : "No cost change"} · {rec.evidence.alternateRoute.timeDeltaHours > 0 ? `+${rec.evidence.alternateRoute.timeDeltaHours}h` : rec.evidence.alternateRoute.timeDeltaHours < 0 ? `${rec.evidence.alternateRoute.timeDeltaHours}h` : "Same ETA"} · Risk: {rec.evidence.alternateRoute.riskScore}
-                          </div>
-                        </div>
-                      )}
-                      {rec.evidence.fleetMatch && rec.evidence.fleetMatch.fleet && (
-                        <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-700 text-xs">
-                          <div className="text-green-400 font-bold mb-1">🚛 Fleet Match</div>
-                          <div className="text-slate-300">{rec.evidence.fleetMatch.fleet.assetId}</div>
-                          <div className="text-slate-500 mt-1">
-                            {rec.evidence.fleetMatch.fleet.locationName || "Nearby"} · Match score: {rec.evidence.fleetMatch.matchScore} · {rec.evidence.fleetMatch.distanceKm}km away
-                          </div>
-                        </div>
-                      )}
+                  {/* Label */}
+                  <div className={`text-[13px] font-bold mb-1 pr-12 ${isRunning || isActive ? "" : "text-slate-400"}`}>
+                    {isRunning ? `${s.label}…` : s.label}
+                  </div>
+
+                  {/* Description */}
+                  <div className="text-[11px] text-slate-600 leading-snug">{s.description}</div>
+
+                  {/* Progress bar when running */}
+                  {isRunning && simStep >= 0 && (
+                    <div className="mt-3 h-0.5 bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${((simStep + 1) / SIM_STEPS.length) * 100}%`,
+                          background: "currentColor",
+                          opacity: 0.6,
+                        }}
+                      />
                     </div>
                   )}
-                  
-                  <div className="flex justify-end gap-3">
-                    <button
-                      onClick={() => rejectRecommendation(rec._id)}
-                      className="px-4 py-2 text-sm text-slate-400 hover:text-red-400 transition-colors border border-transparent hover:border-red-800 rounded-lg"
-                    >
-                      Reject
-                    </button>
-                    <button
-                      onClick={() => approveRecommendation(rec._id)}
-                      className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold transition-colors shadow-lg shadow-indigo-600/20"
-                    >
-                      Approve & Execute
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div>
-            <h2 className="text-xl font-semibold mb-4 text-white">Active Incidents & Alerts</h2>
-            {alerts.length === 0 ? (
-              <div className="p-8 border border-slate-800 rounded-xl bg-slate-800/50 text-center text-slate-500">
-                No active incidents.
-              </div>
-            ) : (
-              <div className="space-y-3">
-              {alerts.slice(0, 8).map((alert, i) => {
-                const borderClass =
-                  alert.severity === "Critical" ? "border-red-500" :
-                  alert.severity === "High"     ? "border-orange-500" :
-                  alert.severity === "Watch"    ? "border-amber-400" :
-                  "border-slate-600";
-                const badgeClass =
-                  alert.severity === "Critical" ? "bg-red-900/60 text-red-300" :
-                  alert.severity === "High"     ? "bg-orange-900/60 text-orange-300" :
-                  alert.severity === "Watch"    ? "bg-amber-900/60 text-amber-300" :
-                  "bg-slate-700 text-slate-400";
-                return (
-                  <div key={i} className={`p-4 border-l-4 rounded-r-lg bg-slate-800 shadow-sm ${borderClass}`}>
-                    <div className="flex justify-between items-start mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${badgeClass}`}>{alert.severity}</span>
-                        <h3 className="font-semibold text-white text-sm">{alert.title}</h3>
-                      </div>
-                      <span className="text-xs text-slate-500 flex-shrink-0 ml-2">{new Date(alert.createdAt).toLocaleTimeString()}</span>
-                    </div>
-                    <p className="text-xs text-slate-400 leading-relaxed mt-1">{alert.message}</p>
-                  </div>
-                );
-              })}
-              </div>
-            )}
-          </div>
-          
-        </div>
-
-        {/* Right Column: Raw Data Stream */}
-        <div>
-          <h2 className="text-xl font-semibold mb-4 text-white">Live Sensor Feed</h2>
-          <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
-            {logs.map((log, i) => {
-              const t = log.temperatureCelsius;
-              const isExcursion = t > 8.0;
-              const isWarning   = t > 7.0 && t <= 8.0;
-              const tempColor   = isExcursion ? "text-red-400" : isWarning ? "text-amber-400" : "text-green-400";
-              const borderColor = isExcursion ? "border-red-800 bg-red-950/30" : isWarning ? "border-amber-800 bg-amber-950/20" : "border-slate-700 bg-slate-800/50";
-              return (
-                <div key={i} className={`p-3 rounded-lg border flex justify-between items-center ${borderColor}`}>
-                  <div className="flex flex-col">
-                    <span className="text-xs text-slate-400">
-                      {new Date(log.timestamp).toLocaleTimeString()}
-                    </span>
-                    <span className={`font-mono font-bold ${tempColor}`}>
-                      {t}°C {isExcursion ? "🔴" : isWarning ? "🟡" : ""}
-                    </span>
-                  </div>
-                  <span className="text-xs text-slate-500">
-                    {log.shipmentId}
-                  </span>
-                </div>
+                </button>
               );
             })}
           </div>
         </div>
-      </div>
-      <HistoricalAnalytics />
 
-      {/* Audit Trail */}
-      <div className="mt-8 mb-24">
-        <h2 className="text-xl font-semibold mb-4 text-white">Audit Trail</h2>
-        {auditEvents.length === 0 ? (
-          <div className="p-6 border border-slate-800 rounded-xl bg-slate-800/50 text-center text-slate-500 text-sm">
-            No audit events yet. Approve or reject a recommendation to generate an audit record.
+        {/* ── Map + AI Action Center ───────────────────────────────────────────
+             8 cols map, 4 cols action center
+        ──────────────────────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
+
+          {/* Map */}
+          <div className="xl:col-span-8 rounded-xl overflow-hidden border border-slate-800/60">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800/60 bg-slate-900/30">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Live Fleet & Disruption Map</span>
+              <div className="flex items-center gap-3 text-[9px] font-bold uppercase tracking-widest text-slate-700">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" />Shipment</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" />Fleet</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500/60 border border-red-500" />Disruption</span>
+              </div>
+            </div>
+            <LiveMap
+              disruptions={disruptions}
+              shipments={shipments}
+              fleets={fleets}
+              rerouteShipmentId={rerouteShipmentId}
+              reroutePath={reroutePath}
+              rerouteLabels={rerouteLabels}
+              flyTo={mapFlyTo}
+              spotlight={mapSpotlight}
+            />
           </div>
-        ) : (
-          <div className="space-y-2">
-            {auditEvents.slice(0, 10).map((evt: any, i: number) => (
-              <div key={i} className="flex items-center justify-between p-3 bg-slate-800/60 border border-slate-700 rounded-lg text-sm">
-                <div className="flex items-center gap-3">
-                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                    evt.eventType === "ApproveRecommendation" ? "bg-green-900/60 text-green-400" :
-                    evt.eventType === "RejectRecommendation" ? "bg-red-900/60 text-red-400" :
-                    "bg-slate-700 text-slate-300"
-                  }`}>{evt.eventType}</span>
-                  <span className="text-slate-400">{evt.entityType}</span>
-                  <span className="text-slate-500 font-mono text-xs">{String(evt.entityId).slice(-8)}</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-slate-500 text-xs">{evt.actorType}</span>
-                  <span className="text-slate-600 text-xs">{new Date(evt.createdAt).toLocaleTimeString()}</span>
+
+          {/* AI Action Center */}
+          <div className="xl:col-span-4 flex flex-col">
+            <SectionHeader title="AI Action Center" count={pendingRecs.length} />
+
+            {pendingRecs.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-800 bg-slate-900/20 text-slate-700 text-[11px] min-h-[220px]">
+                <svg className="w-7 h-7 opacity-25" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                  <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <div className="text-center">
+                  <div className="text-slate-600 font-semibold mb-1">No pending actions</div>
+                  <div className="text-slate-700 text-[10px]">Trigger a scenario above<br/>to generate AI recommendations</div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            ) : (
+              <div className="space-y-2.5 overflow-y-auto max-h-[540px] pr-0.5">
+                {pendingRecs.map((rec) => (
+                  <RecCard
+                    key={rec._id}
+                    rec={rec}
+                    onPreview={() => {
+                      const via = rec.evidence?.alternateRoute?.via ?? [];
+                      // Build full path: shipment current location → via waypoints → destination
+                      const ship = shipments.find(s => s.shipmentId === rec.entityId);
+                      const destName = ship?.destination;
 
+                      const startPt: [number,number] | null = ship?.currentLocation
+                        ? [ship.currentLocation.lat, ship.currentLocation.lng]
+                        : null;
+                      const viaPts = (via as string[]).map(v => CITY_COORDS[v]).filter(Boolean) as [number,number][];
+                      const destPt = destName ? CITY_COORDS[destName] ?? null : null;
+
+                      const fullPath: [number,number][] = [
+                        ...(startPt ? [startPt] : []),
+                        ...viaPts,
+                        ...(destPt ? [destPt] : []),
+                      ];
+                      const labels = [
+                        rec.entityId,
+                        ...(via as string[]),
+                        ...(destName ? [destName] : []),
+                      ];
+
+                      if (fullPath.length >= 2) {
+                        setRerouteShipmentId(rec.entityId);
+                        setReroutePath(fullPath);
+                        setRerouteLabels(labels);
+                        // Fit the whole path in view: fly to midpoint at zoom 5
+                        const midIdx = Math.floor(fullPath.length / 2);
+                        setMapFlyTo({ lat: fullPath[midIdx][0], lng: fullPath[midIdx][1], zoom: 5, seq: ++flySeq.current });
+                        setTimeout(() => { setRerouteShipmentId(null); setReroutePath([]); setRerouteLabels([]); }, 25000);
+                      } else if (disruptions[0]?.geometry) {
+                        // Fallback — fly to disruption zone
+                        const g = disruptions[0].geometry;
+                        setMapFlyTo({ lat: g.lat, lng: g.lng, zoom: 7, seq: ++flySeq.current });
+                      }
+                    }}
+                    onReject={() => rejectRec(rec._id)}
+                    onApprove={() => approveRec(rec)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Incidents + sensor feed ──────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <div>
+            <SectionHeader title="Active Incidents" count={alerts.length} live />
+            {alerts.length === 0
+              ? <div className="flex items-center justify-center h-24 rounded-xl border border-dashed border-slate-800 text-slate-700 text-xs">No active incidents</div>
+              : <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
+                  {alerts.slice(0, 8).map((alert, i) => (
+                    <AlertRow key={alert._id || i} alert={alert} isNew={newAlertIds.has(alert._id)} />
+                  ))}
+                </div>
+            }
+          </div>
+          <div>
+            <SectionHeader title="Live Sensor Feed" live />
+            <div className="space-y-1 max-h-[280px] overflow-y-auto">
+              {logs.length === 0
+                ? <div className="flex items-center justify-center gap-2 h-24 text-slate-700 text-[11px]">
+                    <div className="w-3.5 h-3.5 border border-slate-800 border-t-blue-700 rounded-full animate-spin" />
+                    Awaiting telemetry…
+                  </div>
+                : logs.map(log => {
+                    const key = `${log.shipmentId}-${log.timestamp}`;
+                    return <SensorRow key={key} log={log} isNew={newLogIds.has(key)} />;
+                  })
+              }
+            </div>
+          </div>
+        </div>
+
+        {/* ── Temperature analytics ──────────────────────────────────────────── */}
+        <HistoricalAnalytics />
+
+        {/* ── Audit trail ──────────────────────────────────────────────────────── */}
+        <div className="pb-24">
+          <SectionHeader title="Audit Trail" count={auditEvents.length} />
+          {auditEvents.length === 0
+            ? <div className="flex items-center justify-center h-14 rounded-xl border border-dashed border-slate-800 text-slate-700 text-[11px]">
+                Approve or reject a recommendation to generate records
+              </div>
+            : <div className="space-y-1.5">
+                {auditEvents.slice(0, 10).map((evt: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-800/40 bg-slate-900/20 text-[11px]">
+                    <div className="flex items-center gap-3">
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${
+                        evt.eventType === "ApproveRecommendation" ? "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20" :
+                        evt.eventType === "RejectRecommendation"  ? "bg-red-500/10 text-red-400 ring-1 ring-red-500/20" :
+                        "bg-slate-800 text-slate-500"
+                      }`}>{evt.eventType}</span>
+                      <span className="text-slate-500">{evt.entityType}</span>
+                      <span className="text-slate-700 font-mono">{String(evt.entityId).slice(-8)}</span>
+                    </div>
+                    <span className="text-slate-700 tabular-nums">{new Date(evt.createdAt).toLocaleTimeString()}</span>
+                  </div>
+                ))}
+              </div>
+          }
+        </div>
+      </main>
+
+      <SimToast step={simStep} label={simLabel} />
       <ChatCopilot />
     </div>
   );

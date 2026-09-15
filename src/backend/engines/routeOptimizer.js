@@ -51,22 +51,47 @@ function getRouteAlternatives(origin, destination, activeDisruptions) {
 
   // ── Los Angeles destination disruption (Port Strike) ─────────────────────
   if ((destination === "Los Angeles" || destination === "LA") && hasLADisruption) {
+
+    // Routes differ by origin — Critical shipments from NY get air freight as
+    // top recommendation; Houston origin gets inland bypass as top choice.
+    if (origin === "Houston" || origin === "Dallas") {
+      return [
+        {
+          route: "Houston → San Antonio → El Paso → San Diego → LA (Inland I-10 Bypass)",
+          via: ["Dallas", "San Diego"],
+          costDelta: 950,
+          timeDeltaHours: 10,
+          riskScore: 20,
+          rationale: "Bypass LA port via I-10 inland corridor through El Paso and San Diego. Avoids strike zone entirely — adds only 10h and minimal cost increase."
+        },
+        {
+          route: "Houston → Dallas → Albuquerque → Phoenix → San Diego → LA",
+          via: ["Dallas", "San Diego"],
+          costDelta: 1400,
+          timeDeltaHours: 16,
+          riskScore: 30,
+          rationale: "Northern inland route via Phoenix. Longer but uses uncongested I-10/I-40 corridor. Good fallback if I-10 El Paso segment is also delayed."
+        },
+      ].sort((a, b) => a.riskScore - b.riskScore);
+    }
+
+    // Default (New York origin)
     return [
-      {
-        route: "New York → Atlanta → Houston → San Diego (LA Land Bridge)",
-        via: ["Atlanta", "Houston", "San Diego"],
-        costDelta: 1800,
-        timeDeltaHours: 18,
-        riskScore: 25,
-        rationale: "Avoids LA port congestion. Reroutes via San Diego freight corridor — adds 18h but eliminates port strike exposure."
-      },
       {
         route: "New York → Chicago → Denver → Las Vegas → LA (Air Freight)",
         via: ["Chicago", "Denver", "Las Vegas"],
         costDelta: 5500,
         timeDeltaHours: -10,
         riskScore: 15,
-        rationale: "Air freight bypasses port entirely. Fastest option (+$5,500 premium) — recommended for Critical/time-sensitive cargo."
+        rationale: "Air freight bypasses port entirely. Fastest option (+$5,500 premium) — strongly recommended for Critical time-sensitive vaccine cargo with <5h delivery window."
+      },
+      {
+        route: "New York → Atlanta → Houston → San Diego → LA (Land Bridge)",
+        via: ["Atlanta", "Houston", "San Diego"],
+        costDelta: 1800,
+        timeDeltaHours: 18,
+        riskScore: 25,
+        rationale: "Reroute via San Diego freight corridor — adds 18h but eliminates port strike exposure entirely. Best cost-risk tradeoff for non-critical cargo."
       },
       {
         route: "New York → Atlanta → Los Angeles (Southern Bypass)",
@@ -74,7 +99,7 @@ function getRouteAlternatives(origin, destination, activeDisruptions) {
         costDelta: 900,
         timeDeltaHours: 8,
         riskScore: 35,
-        rationale: "Southern bypass route via Atlanta reduces port exposure but still enters LA via surface — partial risk reduction."
+        rationale: "Southern bypass via Atlanta reduces port exposure but still enters LA via surface road — partial risk reduction only."
       }
     ].sort((a, b) => a.riskScore - b.riskScore);
   }

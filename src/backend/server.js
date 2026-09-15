@@ -49,65 +49,68 @@ io.on("connection", (socket) => {
 
 eventBus.on("disruption.created", async (disruption) => {
   console.log(`[Event] disruption.created: ${disruption.title}`);
-  
-  // 1. Impact Engine
-  const shipments = await Shipment.find({ status: "In Transit" }).populate("routeLegs");
-  const impactedShipments = [];
-  const availableFleets = await FleetAsset.find({ status: "Idle" });
+  try {
+    // 1. Impact Engine
+    const shipments = await Shipment.find({ status: "In Transit" }).populate("routeLegs");
+    const impactedShipments = [];
+    const availableFleets = await FleetAsset.find({ status: "Idle" });
 
-  for (const shipment of shipments) {
-    const impact = calculateDisruptionImpact(shipment, shipment.routeLegs, disruption);
-    
-    if (impact.isImpacted) {
-      // 2. Risk Engine
-      const risk = calculateShipmentRisk(shipment, impact.exposureScore, 24, 0);
-      shipment.riskScore = risk.score;
-      shipment.riskDrivers = risk.riskDrivers;
-      await shipment.save();
-      impactedShipments.push(shipment);
-      
-      // 3. Optimization & Matching
-      const alternatives = getRouteAlternatives(shipment.origin, shipment.destination, [disruption]);
-      const matches = rankFleetMatches(shipment, availableFleets);
-      
-      let selectedFleet = null;
-      if (matches.length > 0) {
-        selectedFleet = matches[0];
-        // Remove this fleet so it's not assigned to the next impacted shipment
-        const index = availableFleets.findIndex(f => f.assetId === selectedFleet.fleet.assetId);
-        if (index !== -1) availableFleets.splice(index, 1);
-      }
-      
-      // 4. Create Recommendation — AI generates the explanation
-      const idleFleetsList = availableFleets.slice(0, 3);
-      const aiStrategy = await generateReroutingStrategy(
-        disruption.type,
-        disruption.geometry.locationName,
-        impactedShipments,
-        idleFleetsList
-      );
+    for (const shipment of shipments) {
+      const impact = calculateDisruptionImpact(shipment, shipment.routeLegs, disruption);
 
-      const rec = new Recommendation({
-        entityType: "Shipment",
-        entityId: shipment.shipmentId,
-        recommendationType: "Reroute & Assign Fleet",
-        score: alternatives[0].riskScore,
-        confidence: 85,
-        rationale: aiStrategy.recommendedAction
-          ? `${aiStrategy.recommendedAction} | Route: ${aiStrategy.alternateRoute || alternatives[0].rationale}` + (selectedFleet ? ` | Fleet: ${selectedFleet.fleet.assetId}` : "")
-          : alternatives[0].rationale + (selectedFleet ? ` Matches with idle asset ${selectedFleet.fleet.assetId}.` : ""),
-        evidence: {
-          alternateRoute: alternatives[0],
-          fleetMatch: selectedFleet || null,
-          aiStrategy
+      if (impact.isImpacted) {
+        // 2. Risk Engine
+        const risk = calculateShipmentRisk(shipment, impact.exposureScore, 24, 0);
+        shipment.riskScore = risk.score;
+        shipment.riskDrivers = risk.riskDrivers;
+        await shipment.save();
+        impactedShipments.push(shipment);
+
+        // 3. Optimization & Matching
+        const alternatives = getRouteAlternatives(shipment.origin, shipment.destination, [disruption]);
+        const matches = rankFleetMatches(shipment, availableFleets);
+
+        let selectedFleet = null;
+        if (matches.length > 0) {
+          selectedFleet = matches[0];
+          const index = availableFleets.findIndex(f => f.assetId === selectedFleet.fleet.assetId);
+          if (index !== -1) availableFleets.splice(index, 1);
         }
-      });
-      await rec.save();
-      io.emit("recommendation.created", rec);
+
+        // 4. Create Recommendation — AI generates the explanation
+        const idleFleetsList = availableFleets.slice(0, 3);
+        const aiStrategy = await generateReroutingStrategy(
+          disruption.type,
+          disruption.geometry.locationName,
+          impactedShipments,
+          idleFleetsList
+        );
+
+        const rec = new Recommendation({
+          entityType: "Shipment",
+          entityId: shipment.shipmentId,
+          recommendationType: "Reroute & Assign Fleet",
+          score: risk.score,
+          confidence: 85,
+          rationale: aiStrategy.recommendedAction
+            ? `${aiStrategy.recommendedAction} | Route: ${aiStrategy.alternateRoute || alternatives[0].rationale}` + (selectedFleet ? ` | Fleet: ${selectedFleet.fleet.assetId}` : "")
+            : alternatives[0].rationale + (selectedFleet ? ` Matches with idle asset ${selectedFleet.fleet.assetId}.` : ""),
+          evidence: {
+            alternateRoute: alternatives[0],
+            fleetMatch: selectedFleet || null,
+            aiStrategy
+          }
+        });
+        await rec.save();
+        io.emit("recommendation.created", rec);
+      }
     }
+
+    io.emit("disruption.updated", { disruption, impactedCount: impactedShipments.length });
+  } catch (err) {
+    console.error("[Event] disruption.created handler error:", err);
+    io.emit("disruption.updated", { disruption, impactedCount: 0 });
   }
-  
-  io.emit("disruption.updated", { disruption, impactedCount: impactedShipments.length });
 });
 
 eventBus.on("sensor.reading.received", async (log) => {
@@ -330,14 +333,17 @@ app.post("/api/disruptions", async (req, res) => {
   try {
     const { disruptionType, location } = req.body;
 
-    const existingDisruption = await Disruption.findOne({
-      status: "Active",
-      type: disruptionType,
-      "geometry.locationName": location
-    });
-
-    if (existingDisruption) {
-      return res.json({ success: true, disruption: existingDisruption });
+    // ── ONE ACTIVE DISRUPTION AT A TIME ──────────────────────────────────────
+    // Resolve any currently active disruptions and wipe their pending recs
+    // so the UI always shows a clean single-scenario view.
+    const previousActive = await Disruption.find({ status: "Active" });
+    if (previousActive.length > 0) {
+      await Disruption.updateMany({ status: "Active" }, { $set: { status: "Resolved" } });
+      await Recommendation.updateMany({ status: "Pending" }, { $set: { status: "Superseded" } });
+      // Reset shipment risk scores to 0 (fresh slate)
+      await Shipment.updateMany({}, { $set: { riskScore: 0, riskDrivers: [] } });
+      // Notify frontend to clear stale state
+      io.emit("scenario.reset", { message: "Previous scenario resolved" });
     }
 
     // Dynamic coordinates based on location
@@ -358,18 +364,17 @@ app.post("/api/disruptions", async (req, res) => {
       type: disruptionType,
       title: `${disruptionType} at ${location}`,
       severity: "High",
-      geometry: { locationName: location, lat, lng, radius: 4500 },
+      geometry: { locationName: location, lat, lng, radius: 250 },
       startAt: new Date(),
       status: "Active",
       source: "Manual Entry"
     });
-    
+
     await newDisruption.save();
-    
-    // Trigger async event
+
+    // Trigger async pipeline
     eventBus.emit("disruption.created", newDisruption);
-    
-    // Audit
+
     const user = getMockUser();
     await new AuditEvent({
       actorType: user.actorType, actorId: user.actorId,
@@ -428,6 +433,20 @@ app.post("/api/v1/recommendations/:id/reject", async (req, res) => {
 
     io.emit("action.completed", { recommendation: rec });
     res.json({ success: true, message: "Action rejected and audit logged." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Reset endpoint: wipe all state, re-seed shipments & fleets from DB ────────
+app.post("/api/v1/reset", async (req, res) => {
+  try {
+    await Disruption.updateMany({}, { $set: { status: "Resolved" } });
+    await Recommendation.updateMany({}, { $set: { status: "Superseded" } });
+    await Shipment.updateMany({}, { $set: { riskScore: 0, riskDrivers: [], status: "In Transit" } });
+    await FleetAsset.updateMany({}, { $set: { status: "Idle" } });
+    io.emit("scenario.reset", { message: "System reset" });
+    res.json({ success: true, message: "All scenarios cleared. Ready for fresh simulation." });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
