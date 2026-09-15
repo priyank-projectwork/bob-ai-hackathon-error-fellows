@@ -93,7 +93,7 @@ function getRouteAlternatives(origin, destination, activeDisruptions, priority =
     // ── Ocean vessel (Shanghai/Asia) → divert to alternate port, then road to LA ──
     // MULTI-MODAL: Sea leg diverts to SD port, then road reefer truck to LA distribution
     if (origin === "Shanghai" || origin === "Tokyo" || origin === "Singapore" || origin === "Busan") {
-      return [
+      return rankRoutes([
         {
           route: "Shanghai → Pacific → San Diego Port [Sea] → LA Distribution Hub [Road]",
           via: ["San Diego", "Los Angeles"],
@@ -120,7 +120,7 @@ function getRouteAlternatives(origin, destination, activeDisruptions, priority =
     // The truck physically cannot deliver to the LA warehouse adjacent to the port.
     // Reroute avoids the LA port gate by delivering to an inland distribution hub.
     if (origin === "Houston" || origin === "Dallas") {
-      return [
+      return rankRoutes([
         {
           route: "Houston → San Antonio → El Paso → San Diego → LA (Inland I-10 Bypass)",
           via: ["San Antonio", "El Paso", "San Diego", "Los Angeles"],
@@ -142,7 +142,7 @@ function getRouteAlternatives(origin, destination, activeDisruptions, priority =
 
     // ── New York → LA: Air freight recommended (Critical priority, tight deadline) ──
     // MULTI-MODAL: Road to airport, then air freight to LA, road reefer to cold-storage
-    return [
+    return rankRoutes([
       {
         route: "New York → JFK Airport [Road] → LAX Airport [Air] → LA Cold Hub [Road]",
         via: ["JFK Airport", "LAX Airport", "Los Angeles"],
@@ -166,7 +166,7 @@ function getRouteAlternatives(origin, destination, activeDisruptions, priority =
 
   // ── Chicago destination disruption (Blizzard) ─────────────────────────────
   if ((destination === "Chicago") && hasChicagoDisruption) {
-    return [
+    return rankRoutes([
       {
         route: "New York → Philadelphia → St. Louis → Chicago (Southern Entry)",
         via: ["Philadelphia", "St. Louis"],
@@ -188,7 +188,7 @@ function getRouteAlternatives(origin, destination, activeDisruptions, priority =
 
   // ── Miami destination disruption (Hurricane) ─────────────────────────────
   if ((destination === "Miami") && hasMiamiDisruption) {
-    return [
+    return rankRoutes([
       {
         route: "Atlanta → Hold at Certified Cold Storage (Hurricane Evacuation Hold)",
         via: ["Atlanta Cold Storage"],
