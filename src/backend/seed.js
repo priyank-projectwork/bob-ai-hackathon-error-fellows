@@ -45,7 +45,7 @@ const seedData = async () => {
     // ── Shipment definitions ─────────────────────────────────────────────
     const now = new Date();
 
-    // City coordinates used for route legs
+    // Named city coordinates
     const CITIES = {
       newYork:      { lat: 40.7128, lng: -74.0060 },
       losAngeles:   { lat: 34.0522, lng: -118.2437 },
@@ -57,12 +57,15 @@ const seedData = async () => {
       dallas:       { lat: 32.7767, lng: -96.7970 },
       philadelphia: { lat: 39.9526, lng: -75.1652 },
       sanDiego:     { lat: 32.7157, lng: -117.1611 },
+      shanghai:     { lat: 31.2304, lng: 121.4737 }, // Shanghai Yangshan Port
     };
 
     const shipmentDefs = [
-      // ── LA Port Strike scenario ─────────────────────────────────────────
-      // SHIP-101: Pfizer mRNA vaccine, arriving LA via road, CRITICALLY tight deadline
-      //   → best reroute: land-bridge via San Diego (avoids port entirely)
+      // ── LA Port Strike scenario ─────────────────────────────────────────────
+      // SHIP-101: Pfizer mRNA vaccine, New York → Los Angeles via I-40 corridor
+      //   Road truck. Currently on I-40 near Albuquerque NM (~1 day out from LA).
+      //   Very tight deadline — 3h ETA, 2h buffer.
+      //   Reroute: air freight from Albuquerque → LA airport bypasses the port.
       {
         id: "SHIP-MVP-101",
         cargoType: "Vaccine",
@@ -71,17 +74,19 @@ const seedData = async () => {
         carrier: "ColdExpress Logistics",
         origin: "New York",
         destination: "Los Angeles",
-        // Currently near LA — inside the port strike disruption zone
-        currentLat: 33.73,
-        currentLng: -118.26,
+        // On I-40 near Albuquerque, NM — real midpoint NY→LA road corridor
+        currentLat: 35.08,
+        currentLng: -106.65,
         legStart: CITIES.newYork,
         legEnd:   CITIES.losAngeles,
-        etaHours: 3,          // very tight — arrives in 3h
-        deadlineHours: 5,     // only 2h slack — high pressure
+        etaHours: 18,         // 18h out from LA
+        deadlineHours: 20,    // 2h slack — very tight
+        mode: "Road",
       },
-      // SHIP-102: Insulin biologics from Houston via road, also heading to LA
-      //   → different origin, lower urgency, different reroute ranks
-      //   → best reroute: Denver air freight (cost acceptable for time savings)
+
+      // SHIP-102: Insulin biologics, Houston → Los Angeles via I-10 West
+      //   Road truck. Currently on I-10 near El Paso TX — real halfway point.
+      //   7h to LA, 7h buffer. Reroute: inland bypass via San Diego.
       {
         id: "SHIP-MVP-102",
         cargoType: "Vaccine",
@@ -90,18 +95,20 @@ const seedData = async () => {
         carrier: "MedFreight Inc",
         origin: "Houston",
         destination: "Los Angeles",
-        // Currently near LA via I-10 west — also inside disruption zone
-        currentLat: 33.96,
-        currentLng: -118.03,
+        // On I-10 near El Paso, TX — real midpoint Houston→LA
+        currentLat: 31.77,
+        currentLng: -106.50,
         legStart: CITIES.houston,
         legEnd:   CITIES.losAngeles,
-        etaHours: 7,          // 7h ETA
-        deadlineHours: 14,    // 7h slack — moderate pressure
+        etaHours: 12,         // 12h out from LA
+        deadlineHours: 19,    // 7h slack
+        mode: "Road",
       },
 
-      // ── Chicago Blizzard scenario ───────────────────────────────────────
-      // SHIP-103: Flu vaccine, New York → Chicago, deep inside blizzard zone
-      //   → best reroute: southern approach via St. Louis
+      // ── Chicago Blizzard scenario ───────────────────────────────────────────
+      // SHIP-103: Flu vaccine, New York → Chicago via I-90 (Indiana Toll Road)
+      //   Road truck. Currently on I-90 near Cleveland OH — about 5h from Chicago.
+      //   Blizzard blocks I-90/I-94 at Chicago. Reroute: south via St. Louis.
       {
         id: "SHIP-MVP-103",
         cargoType: "Vaccine",
@@ -110,17 +117,20 @@ const seedData = async () => {
         carrier: "ArcticFreight LLC",
         origin: "New York",
         destination: "Chicago",
-        currentLat: 41.87,
-        currentLng: -87.64,
+        // On I-90 near Cleveland, OH — real midpoint NY→Chicago
+        currentLat: 41.50,
+        currentLng: -81.69,
         legStart: CITIES.newYork,
         legEnd:   CITIES.chicago,
-        etaHours: 2,          // almost there — extreme urgency
-        deadlineHours: 4,
+        etaHours: 5,          // 5h out from Chicago
+        deadlineHours: 7,
+        mode: "Road",
       },
 
-      // ── Miami Hurricane scenario ────────────────────────────────────────
-      // SHIP-104: BCG vaccine, Atlanta → Miami, storm track directly overhead
-      //   → best reroute: stage at Atlanta cold storage until storm passes
+      // ── Miami Hurricane scenario ────────────────────────────────────────────
+      // SHIP-104: BCG vaccine, Atlanta → Miami via I-75 South
+      //   Road truck. Currently on I-75 near Gainesville FL — about 3h from Miami.
+      //   Hurricane makes landfall at Miami. Reroute: hold at Atlanta cold storage.
       {
         id: "SHIP-MVP-104",
         cargoType: "Vaccine",
@@ -129,16 +139,20 @@ const seedData = async () => {
         carrier: "SouthernCold Transport",
         origin: "Atlanta",
         destination: "Miami",
-        currentLat: 25.78,
-        currentLng: -80.19,
+        // On I-75 near Gainesville, FL — real midpoint Atlanta→Miami
+        currentLat: 29.65,
+        currentLng: -82.33,
         legStart: CITIES.atlanta,
         legEnd:   CITIES.miami,
-        etaHours: 4,
-        deadlineHours: 7,
+        etaHours: 3,
+        deadlineHours: 6,
+        mode: "Road",
       },
 
-      // ── Baseline — unaffected ───────────────────────────────────────────
-      // SHIP-105: Routine medical supplies, Chicago → Denver, no disruption
+      // ── Baseline — unaffected ───────────────────────────────────────────────
+      // SHIP-105: Medical supplies, Chicago → Denver via I-80 West
+      //   Road truck. Currently on I-80 near Des Moines IA — real midpoint.
+      //   No disruption on this corridor.
       {
         id: "SHIP-MVP-105",
         cargoType: "Standard",
@@ -147,20 +161,22 @@ const seedData = async () => {
         carrier: "MidWest Freight Co",
         origin: "Chicago",
         destination: "Denver",
-        currentLat: 39.74,
-        currentLng: -104.99,
+        // On I-80 near Des Moines, IA — real midpoint Chicago→Denver
+        currentLat: 41.59,
+        currentLng: -93.62,
         legStart: CITIES.chicago,
         legEnd:   CITIES.denver,
-        etaHours: 14,
-        deadlineHours: 24,
+        etaHours: 10,
+        deadlineHours: 20,
         mode: "Road",
       },
 
-      // ── LA Port Strike scenario (Ocean Vessel) ──────────────────────────
-      // SHIP-106: Container ship from Shanghai carrying mRNA vaccine cold packs
-      //   → currently mid-Pacific near Hawaii, destination LA Port
-      //   → LA Port Strike means it CANNOT dock → must divert to Long Beach alt
-      //   → best reroute: divert to San Diego or Oakland port
+      // ── LA Port Strike scenario — Ocean Vessel ──────────────────────────────
+      // SHIP-106: Container ship, Shanghai Yangshan Port → LA/Long Beach Port
+      //   Carrying mRNA vaccine cold-packs in refrigerated containers (reefer).
+      //   Currently ~1,200 nautical miles west of LA (roughly 18h at 15 knots).
+      //   LA Port Strike: cannot dock → divert to San Diego or Oakland.
+      //   Real Pacific shipping lane: Great Circle route, passes north of Hawaii.
       {
         id: "SHIP-MVP-106",
         cargoType: "Vaccine",
@@ -169,13 +185,14 @@ const seedData = async () => {
         carrier: "Pacific Shipping Lines",
         origin: "Shanghai",
         destination: "Los Angeles",
-        // Currently mid-Pacific (near Hawaii longitude)
-        currentLat: 25.80,
-        currentLng: -152.40,
-        legStart: { lat: 31.22, lng: 121.47 }, // Shanghai port
+        // ~1,200 nm west of LA on the North Pacific Great Circle route
+        // Real position: approx 34°N 138°W (between Hawaii and California)
+        currentLat: 34.10,
+        currentLng: -138.00,
+        legStart: CITIES.shanghai,
         legEnd:   CITIES.losAngeles,
-        etaHours: 18,          // 18h to LA — imminent arrival during strike
-        deadlineHours: 24,     // 6h slack before cold-chain deadline
+        etaHours: 18,         // 18h at ~15 knots
+        deadlineHours: 24,    // 6h cold-chain slack
         mode: "Ocean",
       },
     ];

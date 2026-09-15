@@ -13,17 +13,16 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
 // ─── Coordinate safety ────────────────────────────────────────────────────────
-// Reject [0,0] (null island), NaN, or anything outside the continental US bbox.
-// This is the root cause of "random lines to nowhere" — Leaflet draws to [0,0]
-// when a coordinate comes back as undefined from an unpopulated routeLeg.
+// Reject [0,0] (null island) and NaN.
+// We now support worldwide coords (Pacific ocean vessel routes).
 function validCoord(pt: any): pt is [number, number] {
   if (!Array.isArray(pt) || pt.length < 2) return false;
   const [lat, lng] = pt;
   if (typeof lat !== "number" || typeof lng !== "number") return false;
   if (isNaN(lat) || isNaN(lng)) return false;
-  if (lat === 0 && lng === 0) return false;             // null island
-  if (lat < 18 || lat > 72) return false;               // outside N America
-  if (lng < -170 || lng > -50) return false;
+  if (lat === 0 && lng === 0) return false;  // null island
+  if (lat < -90 || lat > 90) return false;
+  if (lng < -180 || lng > 180) return false;
   return true;
 }
 
@@ -78,14 +77,31 @@ const makeWaypointIcon = (label: string, color: string) =>
     iconAnchor: [40, 5],
   });
 
-const SHIP_SVG  = `<path d="M2 21c4 0 7-2 9-2s5 2 9 2c-4 0-7-2-9-2s-5 2-9 2"/><path d="M19 19V11a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v8"/><path d="M12 9V5a2 2 0 0 1 2-2h1"/>`;
-const TRUCK_SVG = `<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>`;
-const ALERT_SVG = `<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>`;
+// Road freight truck SVG
+const TRUCK_SVG  = `<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>`;
+// Ocean vessel / container ship SVG
+const VESSEL_SVG = `<path d="M2 20a2 2 0 002 2h16a2 2 0 002-2"/><path d="M5 20V10h14v10"/><path d="M8 10V6l4-4 4 4v4"/><line x1="12" y1="6" x2="12" y2="10"/>`;
+// Airplane SVG
+const PLANE_SVG  = `<path d="M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19.5 2.5S18 2 16.5 3.5L13 7 4.8 5.2A1 1 0 004 6l3 4.5-4 4V16l4-1 4 3h2l1-5.2z"/>`;
+const ALERT_SVG  = `<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>`;
 
-const shipIcon     = makeIcon("#3b82f6", SHIP_SVG);
-const shipRiskIcon = makeIcon("#ef4444", SHIP_SVG, true);
-const truckIcon    = makeIcon("#22c55e", TRUCK_SVG);
-const alertIcon    = makeIcon("#ef4444", ALERT_SVG, true);
+// Normal (blue) and risk (red/pulsing) versions for each mode
+const roadIcon       = makeIcon("#3b82f6",  TRUCK_SVG);
+const roadRiskIcon   = makeIcon("#ef4444",  TRUCK_SVG, true);
+const vesselIcon     = makeIcon("#38bdf8",  VESSEL_SVG);       // sky blue
+const vesselRiskIcon = makeIcon("#f97316",  VESSEL_SVG, true); // orange pulsing
+const planeIcon      = makeIcon("#a78bfa",  PLANE_SVG);        // purple
+const truckIcon      = makeIcon("#22c55e",  TRUCK_SVG);        // idle fleet — green
+const alertIcon      = makeIcon("#ef4444",  ALERT_SVG, true);
+
+// Pick icon by route leg mode and risk score
+function getShipmentIcon(ship: any): L.DivIcon {
+  const mode = ship.routeLegs?.[0]?.mode ?? ship.mode ?? "Road";
+  const isRisk = (ship.riskScore ?? 0) >= 50;
+  if (mode === "Ocean") return isRisk ? vesselRiskIcon : vesselIcon;
+  if (mode === "Air")   return planeIcon;
+  return isRisk ? roadRiskIcon : roadIcon;
+}
 
 // ─── Injected CSS ─────────────────────────────────────────────────────────────
 
@@ -449,7 +465,7 @@ export default function LiveMap({
           if (!pos) return null;
           return (
             <Marker key={`ship-${i}`} position={pos}
-              icon={(ship.riskScore ?? 0) >= 50 ? shipRiskIcon : shipIcon}
+              icon={getShipmentIcon(ship)}
               zIndexOffset={100}
             >
               <Popup className="cc-popup" maxWidth={230}><ShipmentPopup s={ship} /></Popup>
