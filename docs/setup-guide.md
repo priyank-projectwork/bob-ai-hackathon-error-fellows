@@ -50,7 +50,7 @@ MONGO_URI=mongodb://127.0.0.1:27017/bob-logistics-hackathon
 ### Step 1 — Clone the repository
 
 ```bash
-git clone https://github.com/priyank-projectwork/bob-ai-hackathon-error-fellows.git
+git clone https://github.com/nilkanth-patel/bob-ai-hackathon-error-fellows.git
 cd bob-ai-hackathon-error-fellows
 ```
 

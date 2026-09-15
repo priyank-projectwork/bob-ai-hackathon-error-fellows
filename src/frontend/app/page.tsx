@@ -784,13 +784,33 @@ export default function Dashboard() {
       <header className="sticky top-0 z-50 border-b border-slate-800/60 bg-[#060b14]/92 backdrop-blur-lg">
         <div className="max-w-[1600px] mx-auto px-5 flex items-center justify-between gap-4" style={{ height: 52 }}>
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/30">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M19.07 4.93 4.93 19.07" strokeLinecap="round"/>
+            {/* Logo: snowflake-in-network — cold-chain supply chain icon */}
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20"
+              style={{ background: "linear-gradient(135deg,#0ea5e9 0%,#2563eb 100%)" }}>
+              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {/* Snowflake arms */}
+                <line x1="12" y1="2"  x2="12" y2="22"/>
+                <line x1="2"  y1="12" x2="22" y2="12"/>
+                <line x1="5"  y1="5"  x2="19" y2="19"/>
+                <line x1="19" y1="5"  x2="5"  y2="19"/>
+                {/* Centre node */}
+                <circle cx="12" cy="12" r="2.2" fill="white" stroke="none"/>
+                {/* Route dots at arm tips */}
+                <circle cx="12" cy="3.5" r="1.1" fill="white" stroke="none"/>
+                <circle cx="12" cy="20.5" r="1.1" fill="white" stroke="none"/>
+                <circle cx="3.5" cy="12" r="1.1" fill="white" stroke="none"/>
+                <circle cx="20.5" cy="12" r="1.1" fill="white" stroke="none"/>
               </svg>
             </div>
-            <span className="text-sm font-bold text-white tracking-tight">ColdChain<span className="text-blue-500">AI</span></span>
-            <span className="hidden md:inline text-[9px] font-bold uppercase tracking-[0.15em] text-slate-700 border border-slate-800 rounded px-1.5 py-0.5">Command Center</span>
+            <div className="flex flex-col leading-none gap-0.5">
+              <span className="text-[13px] font-bold text-white tracking-tight">
+                SupplyChain<span className="text-cyan-400">AI</span>
+                <span className="ml-1 text-[10px] font-semibold text-slate-400">Copilot</span>
+              </span>
+              <span className="hidden md:inline text-[8px] font-bold uppercase tracking-[0.18em] text-slate-600">
+                Cold‑Chain Command Center
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <LiveClock />

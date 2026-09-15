@@ -1,4 +1,4 @@
-# 🚀 ColdChain AI Copilot
+# 🚀 SupplyChain AI Copilot
 
 > **Supply Chain Disruption Assistant & Fleet Utilisation Optimizer**  
 > IBM Bob AI Hackathon 2026 — Team **Error Fellows** — Track **AI**
@@ -11,7 +11,10 @@
 |---|---|
 | **Team Name** | Error Fellows |
 | **Track** | AI |
-| **Team Lead** | Priyank — priyank@errorfellows.dev |
+| **Team Lead** | Nilkanth Patel — 25msit125@charusat.edu.in |
+| **Members** | Manav Shah — 25mca154@charusat.edu.in |
+| | Priyank Patel — 25mca120@charusat.edu.in |
+| | Prachi Patel — 25mca119@charusat.edu.in |
 
 ---
 
@@ -23,7 +26,7 @@ Supply chain operations teams managing cold-chain pharmaceutical shipments (vacc
 
 ## 💡 Solution
 
-ColdChain AI Copilot is a real-time supply chain control tower that continuously correlates live IoT sensor telemetry, active disruption events, shipment routes, and fleet availability using deterministic engines for risk scoring, route optimisation, and cold-chain excursion detection. An IBM watsonx.ai-powered AI Operations Copilot (Llama 4 Maverick) overlays structured results with natural-language explanations, ranked recommendations, and human-in-the-loop approval workflows — so operators can detect, triage, and act on disruptions before cargo is compromised.
+SupplyChain AI Copilot is a real-time supply chain control tower that continuously correlates live IoT sensor telemetry, active disruption events, shipment routes, and fleet availability using deterministic engines for risk scoring, route optimisation, and cold-chain excursion detection. An IBM watsonx.ai-powered AI Operations Copilot (Llama 4 Maverick) overlays structured results with natural-language explanations, ranked recommendations, and human-in-the-loop approval workflows — so operators can detect, triage, and act on disruptions before cargo is compromised.
 
 ---
 
@@ -90,7 +93,7 @@ See [`docs/setup-guide.md`](docs/setup-guide.md) for full instructions.
 # Prerequisites: Node.js 20+, MongoDB 7 running on port 27017
 
 # 1. Clone the repo
-git clone https://github.com/priyank-projectwork/bob-ai-hackathon-error-fellows.git
+git clone https://github.com/nilkanth-patel/bob-ai-hackathon-error-fellows.git
 cd bob-ai-hackathon-error-fellows
 
 # 2. Configure environment
@@ -119,7 +122,7 @@ The dashboard is available at **http://localhost:3000**
 
 | Artifact | Link |
 |---|---|
-| 📹 Demo Video | [See demo/demo-video-link.txt](demo/demo-video-link.txt) |
+| 📹 Demo Video | [Watch on Loom](https://www.loom.com/share/c66d6b32418b463188f9eecb238a756d) |
 | 🌐 Live Demo | NOT DEPLOYED — see video |
 | 🖼️ Screenshots | [See demo/screenshots/](demo/screenshots/) |
 | 📊 Presentation | [See presentation/](presentation/) |

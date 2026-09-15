@@ -1,7 +1,4 @@
-PENDING — Demo video will be recorded and uploaded before submission deadline.
+https://www.loom.com/share/c66d6b32418b463188f9eecb238a756d
 
-Platform: YouTube (unlisted) or Loom
-Length: 3–5 minutes
+Platform: Loom
 Content: Full end-to-end walkthrough — LA Port Strike scenario → AI recommendations → cold-chain excursion → approve action → audit trail → AI chat copilot
-
-Please see docs/setup-guide.md to run the project locally in the meantime.

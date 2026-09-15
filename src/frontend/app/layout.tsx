@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ColdChainAI — Command Center",
+  title: "SupplyChain AI Copilot — Cold-Chain Command Center",
   description: "Real-time supply chain disruption assistant & fleet utilisation optimizer powered by IBM watsonx.ai",
 };
 

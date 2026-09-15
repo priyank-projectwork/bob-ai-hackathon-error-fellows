@@ -1,6 +1,6 @@
-# ColdChain AI Copilot — IBM Bob MCP Server
+# SupplyChain AI Copilot — IBM Bob MCP Server
 
-This MCP (Model Context Protocol) server connects **IBM Bob** directly to the ColdChain AI Copilot's live operational data. When you ask Bob a question about supply chain state, Bob calls these tools to retrieve structured facts — it never fabricates numbers.
+This MCP (Model Context Protocol) server connects **IBM Bob** directly to the SupplyChain AI Copilot's live operational data. When you ask Bob a question about supply chain state, Bob calls these tools to retrieve structured facts — it never fabricates numbers.
 
 ## How It Works
 

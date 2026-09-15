@@ -1,6 +1,6 @@
-# Source Code — ColdChain AI Copilot
+# Source Code — SupplyChain AI Copilot
 
-This directory contains all source code for the ColdChain AI Copilot submission.
+This directory contains all source code for the SupplyChain AI Copilot submission.
 
 ## Layout
 

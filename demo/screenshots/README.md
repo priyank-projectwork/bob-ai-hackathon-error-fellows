@@ -1,18 +1,18 @@
-# Screenshots
+# Screenshots — SupplyChain AI Copilot
 
-Screenshots of the running ColdChain AI Copilot application.
+3 screenshots of the running application.
 
-## Files to add (before submission)
+## Files
 
-- `01-dashboard-kpis.png` — Main dashboard with 4 KPI cards, live sensor feed
-- `02-disruption-trigger.png` — After triggering LA Port Strike: recommendations in AI Action Center
-- `03-live-map.png` — Leaflet map with shipment markers, idle fleets, disruption zone circle
-- `04-cold-chain-alert.png` — Red excursion alert with watsonx.ai GDP severity classification
-- `05-ai-chat-copilot.png` — AI chat widget responding to "What shipments are at risk?"
-- `06-audit-trail.png` — Audit trail section showing ApproveRecommendation event
+- `01-dashboard-kpis.png` — Full dashboard on initial load: 4 KPI cards, live sensor feed, idle fleet assets
+- `02-disruption-impact.png` — After triggering LA Port Strike: AI Action Center populated with ranked recommendations, disruption zone on map
+- `03-cold-chain-alerts.png` — Cold-chain excursion alerts active + Audit Trail section showing approved recommendation events
 
-## How to run the app for screenshots
+## How to reproduce
 
-See `docs/setup-guide.md` for the full local setup.
-Quick path: `cd src/backend && npm install && npm run seed && npm start` + `cd src/frontend && npm run dev`
-Then open http://localhost:3000
+```bash
+cd src/backend && npm install && npm run seed && npm start
+cd src/frontend && npm install && npm run dev
+```
+
+Open http://localhost:3000

@@ -6,18 +6,18 @@ team:
   name: "Error Fellows"
   track: "AI"
   lead:
-    name: "Priyank"
-    email: "priyank@errorfellows.dev"
+    name: "Nilkanth Patel"
+    email: "25msit125@charusat.edu.in"
   members:
-    - name: "Priyank"
-      email: "priyank@errorfellows.dev"
-    - name: ""
-      email: ""
-    - name: ""
-      email: ""
+    - name: "Manav Shah"
+      email: "25mca154@charusat.edu.in"
+    - name: "Priyank Patel"
+      email: "25mca120@charusat.edu.in"
+    - name: "Prachi Patel"
+      email: "25mca119@charusat.edu.in"
 
 submission:
-  title: "ColdChain AI Copilot — Supply Chain Disruption & Fleet Optimisation"
+  title: "SupplyChain AI Copilot — Supply Chain Disruption & Fleet Optimisation"
 
   problem_statement: >
     Supply chain operations teams managing cold-chain pharmaceutical shipments
@@ -29,7 +29,7 @@ submission:
     reacting too late — after the damage is done.
 
   solution_summary: >
-    ColdChain AI Copilot is a real-time supply chain control tower that continuously
+    SupplyChain AI Copilot is a real-time supply chain control tower that continuously
     correlates live IoT sensor telemetry, active disruption events, shipment routes,
     and fleet availability using deterministic engines for risk scoring, route
     optimisation, and cold-chain excursion detection. An IBM watsonx.ai-powered

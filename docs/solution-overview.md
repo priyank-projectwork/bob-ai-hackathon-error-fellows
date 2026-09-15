@@ -2,7 +2,7 @@
 
 ## What We Built
 
-ColdChain AI Copilot is a real-time supply chain control tower purpose-built for cold-chain pharmaceutical logistics. It continuously correlates three live data streams — disruption events, IoT sensor telemetry, and fleet availability — and uses a layered architecture that separates deterministic operational calculation from generative AI explanation.
+SupplyChain AI Copilot is a real-time supply chain control tower purpose-built for cold-chain pharmaceutical logistics. It continuously correlates three live data streams — disruption events, IoT sensor telemetry, and fleet availability — and uses a layered architecture that separates deterministic operational calculation from generative AI explanation.
 
 The core design principle: **AI recommends and explains; deterministic engines calculate the facts.**
 
