@@ -1,9 +1,20 @@
 "use client";
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { TimeBar } from "@/components/TimeBar";
 import { TriageQueue } from "@/components/TriageQueue";
 import { AuditPanel } from "@/components/AuditPanel";
 import { api, type Health, type WorldSnapshot } from "@/lib/api";
+
+// Leaflet touches window on import, so it can only load in the browser.
+const MovingMap = dynamic(() => import("@/components/MovingMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[520px] items-center justify-center rounded-lg border border-slate-700/50 bg-slate-900/30">
+      <span className="text-sm opacity-60">Loading map…</span>
+    </div>
+  ),
+});
 
 /**
  * Control Tower.
@@ -69,21 +80,11 @@ export default function ControlTowerPage() {
         </p>
       )}
 
+      <MovingMap selected={selected} onSelect={setSelected} />
+
       <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">
         <TriageQueue onSelect={setSelected} />
-        <div className="flex flex-col gap-8">
-          <AuditPanel />
-          {selected && (
-            <section aria-label="Selected shipment">
-              <h2 className="text-lg font-semibold">Selected</h2>
-              <p className="mt-1 font-mono text-sm">{selected}</p>
-              <p className="mt-2 text-sm opacity-60">
-                Route, options and disposition open here — see docs/known-limitations.md for what is
-                not wired yet.
-              </p>
-            </section>
-          )}
-        </div>
+        <AuditPanel />
       </div>
     </main>
   );
