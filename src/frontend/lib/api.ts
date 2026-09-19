@@ -144,12 +144,15 @@ export interface Excursion {
 export interface AuditEvent {
   seq: number;
   at: number;
-  actor: { sub: string; roles: string[] };
+  /** Absent on rows written before the hash chain existed. */
+  actor?: { sub: string; roles: string[] };
+  /** Legacy column, still populated for backwards compatibility. */
+  actorId?: string;
   action: string;
   entityType?: string;
   entityId?: string;
   outcome: "allowed" | "denied" | "recorded";
-  hash: string;
+  hash?: string;
 }
 
 export interface AuditVerdict {

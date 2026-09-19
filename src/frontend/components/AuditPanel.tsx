@@ -59,7 +59,7 @@ export function AuditPanel() {
       <ol className="flex flex-col gap-1">
         {events.map((e) => (
           <li
-            key={e.hash}
+            key={e.hash ?? `legacy-${e.seq ?? Math.random()}`}
             className={`flex flex-wrap items-baseline gap-3 rounded border px-3 py-2 text-sm ${
               e.outcome === "denied"
                 ? "border-amber-500/40 bg-amber-500/10"
@@ -75,8 +75,15 @@ export function AuditPanel() {
             )}
             <span className="opacity-70">{e.entityId}</span>
             <span className="ml-auto flex items-center gap-2 font-mono text-xs opacity-60">
-              <span>{e.actor.sub}</span>
-              <span title={e.hash}>{e.hash.slice(0, 8)}</span>
+              {/* Rows written before the hash chain existed carry actorId
+                  instead of actor.sub and have no hash at all. Render them
+                  rather than crashing the panel. */}
+              <span>{e.actor?.sub ?? e.actorId ?? "system"}</span>
+              {e.hash ? (
+                <span title={e.hash}>{e.hash.slice(0, 8)}</span>
+              ) : (
+                <span className="opacity-50">pre-chain</span>
+              )}
             </span>
           </li>
         ))}
