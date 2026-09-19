@@ -698,10 +698,71 @@ app.use((err, req, res, next) => {
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * When we are running on the in-memory store the database starts empty and
+ * dies with the process, so there is nothing to seed ahead of time. Populate it
+ * on boot instead: a judge with no MongoDB installed runs `npm start` and gets
+ * a working world rather than an empty map.
+ */
+async function autoSeedIfEmpty(storeMode) {
+  if (storeMode !== "memory" && process.env.SEED_ON_BOOT !== "1") return;
+  const existing = await Shipment.estimatedDocumentCount();
+  if (existing > 0) return;
+
+  const { buildWorld } = require("./data/generate");
+  const net = require("./data/network");
+  const profileFile = require("./data/rule-profiles.json");
+
+  const nowMs = Date.now();
+  const profiles = await RuleProfile.insertMany(profileFile.profiles);
+  const byKey = Object.fromEntries(profiles.map((p) => [p.profileKey, p]));
+  const world = buildWorld({ nowMs, seed: Number(process.env.SIM_SEED) || 42 });
+
+  await Shipment.insertMany(world.shipments.map((s) => {
+    const profile = byKey[s.profileKey];
+    return {
+      shipmentId: s.shipmentId,
+      cargoType: s.cargoType,
+      cargoValue: s.declaredValueUsd,
+      declaredValueUsd: s.declaredValueUsd,
+      doses: s.doses ?? undefined,
+      priority: s.priority,
+      origin: s.origin,
+      destination: s.destination,
+      currentLocation: { lat: s.routeCoords[0][1], lng: s.routeCoords[0][0] },
+      status: "In Transit",
+      eta: new Date(s.plannedEtaMs),
+      needByAt: new Date(s.needByAtMs),
+      deliveryDeadline: new Date(s.needByAtMs),
+      carrier: s.carrier,
+      tempProfileId: profile?._id,
+      routeCoords: s.routeCoords,
+      speedKmh: s.speedKmh,
+      departedAt: new Date(s.departedAtMs),
+      dwellHours: s.dwellHours,
+      setpointC: profile?.setpointC ?? 5,
+      corridorBiasC: s.corridorBiasC,
+      transportMode: s.transportMode,
+    };
+  }));
+
+  await FleetAsset.insertMany(world.assets.map((a) => ({ ...a, locationName: net.node(a.homeBase).name })));
+  console.log(`🌱 Auto-seeded ${world.shipments.length} shipments and ${world.assets.length} assets (in-memory store)`);
+}
+
 async function main() {
   const storeResult = await connectStore();
+  try {
+    await autoSeedIfEmpty(storeResult.mode);
+  } catch (err) {
+    console.warn("⚠️  Auto-seed skipped:", err.message);
+  }
   if (storeResult.mode !== "none") {
-    startSimulation();
+    // The legacy random-spike simulator is retired here: the world now
+    // generates readings from each shipment's actual position and reefer
+    // state, so an excursion has a cause. Set LEGACY_SIM=1 to run the old
+    // one instead.
+    if (process.env.LEGACY_SIM === "1") startSimulation();
     world.start();
   }
 
