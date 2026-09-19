@@ -82,3 +82,48 @@ body {
   );
   z-index: 500;
 }
+
+/* ── LIFECLOCK map ──────────────────────────────────────────────────────── */
+
+/* A shipment running out of cargo life pulses. The period shortens as the
+   clock drops, so a map full of dots reads as urgency without anyone having
+   to compare numbers. */
+@keyframes lcPulse {
+  0%, 100% { r: var(--lc-r, 7); opacity: 0.9; }
+  50%      { r: calc(var(--lc-r, 7) * 1.55); opacity: 0.45; }
+}
+.lc-pulse-amber circle,
+.lc-pulse-amber { animation: lcPulse 2.6s ease-in-out infinite; }
+.lc-pulse-red circle,
+.lc-pulse-red   { animation: lcPulse 1.3s ease-in-out infinite; }
+.lc-pulse-black circle,
+.lc-pulse-black { animation: lcPulse 0.8s ease-in-out infinite; }
+
+/* The path still ahead marches forward; the path already travelled does not. */
+@keyframes lcMarch { to { stroke-dashoffset: -28; } }
+.lc-remaining { animation: lcMarch 1.1s linear infinite; }
+
+/* A disruption zone breathes rather than sitting still, so it reads as live. */
+@keyframes lcBreathe {
+  0%, 100% { opacity: 0.16; transform: scale(1); }
+  50%      { opacity: 0.30; transform: scale(1.04); }
+}
+.lc-zone { animation: lcBreathe 3.2s ease-in-out infinite; transform-origin: center; }
+
+/* Selecting a shipment sends one ring out from it. */
+@keyframes lcSonar {
+  from { r: 8;  opacity: 0.85; stroke-width: 3; }
+  to   { r: 46; opacity: 0;    stroke-width: 0.5; }
+}
+.lc-sonar { animation: lcSonar 1.5s cubic-bezier(0.2, 0.8, 0.4, 1) forwards; }
+
+/* Marker positions are interpolated between polls rather than jumping. */
+.lc-marker { transition: transform 1.8s linear; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lc-pulse-amber, .lc-pulse-red, .lc-pulse-black,
+  .lc-remaining, .lc-zone, .lc-sonar, .lc-marker {
+    animation: none !important;
+    transition: none !important;
+  }
+}

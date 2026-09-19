@@ -1,8 +1,16 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, useMap } from "react-leaflet";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MapContainer, TileLayer, Polyline, CircleMarker, Circle, Tooltip, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { api, type MovingShipment, type LifeClock, type ClockState } from "@/lib/api";
+import { api, API, type MovingShipment, type LifeClock, type ClockState } from "@/lib/api";
+
+interface DisruptionZone {
+  id: string;
+  title?: string;
+  type?: string;
+  centre: [number, number];
+  radiusKm: number;
+}
 
 const STATE_COLOUR: Record<ClockState, string> = {
   green: "#22c55e",
@@ -40,6 +48,8 @@ export default function MovingMap({
   const [shipments, setShipments] = useState<MovingShipment[]>([]);
   const [clocks, setClocks] = useState<Record<string, LifeClock>>({});
   const [error, setError] = useState<string | null>(null);
+  const [disruptions, setDisruptions] = useState<DisruptionZone[]>([]);
+  const sonarKey = useRef(0);
 
   useEffect(() => {
     let alive = true;
@@ -47,6 +57,24 @@ export default function MovingMap({
       try {
         const [world, lc] = await Promise.all([api.world(), api.lifeClocks()]);
         if (!alive) return;
+        // Disruption zones are optional — the map still works without them.
+        try {
+          const res = await fetch(`${API}/api/locations`);
+          if (res.ok) {
+            const body = await res.json();
+            setDisruptions(
+              (body.disruptions ?? [])
+                .filter((d: any) => d?.geometry?.lat != null && d?.geometry?.lng != null)
+                .map((d: any) => ({
+                  id: String(d._id ?? d.title),
+                  title: d.title,
+                  type: d.type,
+                  centre: [d.geometry.lng, d.geometry.lat] as [number, number],
+                  radiusKm: d.geometry.radius ?? 80,
+                }))
+            );
+          }
+        } catch { /* zones are decoration, never block the map */ }
         setShipments(world.shipments.filter((s) => s.position));
         setClocks(Object.fromEntries(lc.clocks.map((c) => [c.shipmentId, c])));
         setError(null);
@@ -61,6 +89,8 @@ export default function MovingMap({
       clearInterval(t);
     };
   }, []);
+
+  useEffect(() => { sonarKey.current += 1; }, [selected]);
 
   const selectedShipment = useMemo(
     () => shipments.find((s) => s.shipmentId === selected) ?? null,
@@ -93,7 +123,38 @@ export default function MovingMap({
         {selectedShipment?.remainingPath && (
           <Polyline
             positions={selectedShipment.remainingPath.map(([lng, lat]) => [lat, lng])}
-            pathOptions={{ color: "#38bdf8", weight: 3, opacity: 0.9 }}
+            className="lc-remaining"
+            pathOptions={{ color: "#38bdf8", weight: 3, opacity: 0.95, dashArray: "10 8" }}
+          />
+        )}
+
+        {/* Disruption zones breathe so they read as live, not drawn-on. */}
+        {disruptions.map((d) => (
+          <Circle
+            key={d.id}
+            center={[d.centre[1], d.centre[0]]}
+            radius={d.radiusKm * 1000}
+            className="lc-zone"
+            pathOptions={{ color: "#f97316", weight: 1.5, fillColor: "#f97316", fillOpacity: 0.18 }}
+          >
+            <Tooltip direction="top">
+              <div className="text-xs">
+                <div className="font-semibold">{d.title ?? d.type}</div>
+                <div>{d.radiusKm} km zone</div>
+              </div>
+            </Tooltip>
+          </Circle>
+        ))}
+
+        {/* One ring out from whatever was just selected. */}
+        {selectedShipment?.position && (
+          <CircleMarker
+            key={`sonar-${selected}-${sonarKey.current}`}
+            center={[selectedShipment.position[1], selectedShipment.position[0]]}
+            radius={8}
+            className="lc-sonar"
+            pathOptions={{ color: "#38bdf8", weight: 3, fill: false }}
+            interactive={false}
           />
         )}
 
@@ -103,11 +164,18 @@ export default function MovingMap({
           const colour = STATE_COLOUR[state];
           const isSelected = s.shipmentId === selected;
           const [lng, lat] = s.position!;
+          // Only shipments in trouble pulse, and the worse it is the faster.
+          const pulse =
+            state === "black" ? "lc-pulse-black"
+            : state === "red" ? "lc-pulse-red"
+            : state === "amber" ? "lc-pulse-amber"
+            : "";
           return (
             <CircleMarker
               key={s.shipmentId}
               center={[lat, lng]}
               radius={isSelected ? 9 : state === "green" ? 5 : 7}
+              className={`lc-marker ${pulse}`}
               pathOptions={{
                 color: isSelected ? "#ffffff" : colour,
                 weight: isSelected ? 3 : 1.5,
