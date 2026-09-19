@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node server.js",
     "seed": "node seed.js",
-    "test": "node --test engines/ sim/ data/ services/"
+    "test": "node --test engines/ sim/ data/ services/",
+    "record": "node scripts/record.js",
+    "record:verify": "node -e \"console.log(JSON.stringify(require('./sim/recorder').verifyRecording('in-ke'),null,1))\"",
+    "demo": "SIM_MODE=replay ENABLE_MEMORY_DB=1 node server.js"
   },
   "keywords": [],
   "author": "",

@@ -1,0 +1,11 @@
+{
+  "scenario": "in-ke",
+  "seed": 42,
+  "simulatedMinutes": 180,
+  "startMs": 1700000000000,
+  "recordedWith": "npm run record",
+  "file": "in-ke.ndjson",
+  "lines": 52,
+  "sha256": "0d4c1e6f32c5e6d2f988fe67cb40599ba182b5317d5e3c17d1143203fe5282e2",
+  "note": "Produced by `npm run record` from the real engines. Regenerate it yourself with the same seed and you will get the same file."
+}
