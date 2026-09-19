@@ -1,152 +1,142 @@
-# Setup Guide
+# Setup guide
 
-> **This guide has been tested end-to-end. Follow every step exactly.**
+Written for someone who has never seen this repo. It runs with **no API key,
+no MongoDB and no internet** — those only add capability, they are not
+prerequisites.
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
+| Tool | Version | Needed for |
+|---|---|---|
+| Node.js | 18, 20 or 22 | everything |
+| npm | ships with Node | everything |
+| MongoDB | 7 (**optional**) | persistence between restarts |
+| IBM Bob | any recent build (**optional**) | the agent integration |
 
-- [ ] **Node.js 20+** — [nodejs.org/download](https://nodejs.org/download)
-- [ ] **MongoDB 7 Community** — [mongodb.com/try/download/community](https://www.mongodb.com/try/download/community)
-- [ ] **An IBM Cloud account** with watsonx.ai access — [cloud.ibm.com](https://cloud.ibm.com)
-- [ ] **Git** — [git-scm.com](https://git-scm.com)
-
-Verify Node.js and MongoDB are running:
-```bash
-node --version      # should print v20.x.x or higher
-mongosh --version   # should connect to local MongoDB
-```
-
-## IBM watsonx.ai Credentials
-
-You need three values from your IBM Cloud account:
-
-| Variable | Where to find it |
-|---|---|
-| `WATSONX_API_KEY` | IBM Cloud → Manage → Access (IAM) → API keys → Create |
-| `WATSONX_PROJECT_ID` | watsonx.ai → Your Project → Manage → Project ID |
-| `WATSONX_URL` | Regional endpoint, e.g. `https://us-south.ml.cloud.ibm.com` |
-
-## Environment Variables
-
-```bash
-# From the repo root:
-cp src/.env.example src/backend/.env
-```
-
-Then edit `src/backend/.env` and fill in:
-
-```env
-WATSONX_API_KEY=your_actual_api_key
-WATSONX_PROJECT_ID=your_actual_project_id
-WATSONX_URL=https://us-south.ml.cloud.ibm.com
-MONGO_URI=mongodb://127.0.0.1:27017/bob-logistics-hackathon
-```
-
-> **Note:** The app works without valid watsonx credentials — all AI calls have grounded fallback responses. The deterministic engines (risk scoring, fleet matching, route optimization) run independently of the AI layer.
-
-## Installation
-
-### Step 1 — Clone the repository
+## 1. Clone and install
 
 ```bash
 git clone https://github.com/priyank-projectwork/bob-ai-hackathon-error-fellows.git
 cd bob-ai-hackathon-error-fellows
+
+cd src/backend  && npm install
+cd ../frontend  && npm install
 ```
 
-### Step 2 — Configure environment
+## 2. Run it
 
-```bash
-cp src/.env.example src/backend/.env
-# Edit src/backend/.env with your watsonx.ai credentials (see above)
-```
+**Terminal 1 — backend**
 
-### Step 3 — Install backend dependencies
-
-```bash
-cd src/backend
-npm install
-```
-
-### Step 4 — Seed the database
-
-This creates 5 vaccine shipments, 5 idle reefer trucks, a vaccine rule profile, and 24 hours of historical sensor logs.
-
-```bash
-npm run seed
-# Expected output:
-# ✅ MongoDB connected for seeding
-# ✅ Seeded 5 Shipments and Route Legs
-# ✅ Seeded 5 FleetAssets
-# ✅ Seeded 24 hours of Historical Sensor Logs
-# ✅ Seeding complete, connection closed
-```
-
-### Step 5 — Install frontend dependencies
-
-```bash
-cd ../frontend
-npm install
-```
-
-## Running the Application
-
-You need **two terminal windows**.
-
-**Terminal 1 — Backend:**
 ```bash
 cd src/backend
 npm start
-# Expected output:
-# ✅ MongoDB connected
-# 🌡️ Starting mock IoT temperature stream (every 5s)...
-# 🚀 Server running on http://127.0.0.1:4000
 ```
 
-**Terminal 2 — Frontend:**
+Expected output with no MongoDB installed:
+
+```
+⚠️  MongoDB unavailable — starting in memory mode (data will not persist)
+✅ In-memory MongoDB connected
+🌱 Auto-seeded 45 shipments and 41 assets (in-memory store)
+🚀 Server running on http://127.0.0.1:4000
+```
+
+With MongoDB running, seed it once first:
+
+```bash
+npm run seed     # 45 shipments across 13 lanes, 68 route legs, 41 assets, 5 rule profiles
+npm start
+```
+
+**Terminal 2 — frontend**
+
 ```bash
 cd src/frontend
 npm run dev
-# Expected output:
-# ▲ Next.js 16.x.x
-# - Local: http://localhost:3000
 ```
 
-Open **http://localhost:3000** in your browser.
+Open **http://localhost:3000**.
 
-## Verifying It Works
+## 3. Check you are on the current build
 
-1. **Dashboard loads** — You see 4 KPI cards. "Idle Fleet Assets" should show **5**.
-2. **Live Connection badge** — Top right shows a green pulsing dot and "Live Connection".
-3. **Sensor Feed** — Within 5 seconds, temperature readings start appearing in the right panel.
-4. **Trigger a disruption** — Click **⚠️ LA Port Strike**. Within 3 seconds:
-   - Active Disruptions KPI increments
-   - A new recommendation appears in the AI Action Center
-   - The Leaflet map shows a red disruption circle at Los Angeles
-5. **Approve a recommendation** — Click "Approve & Execute". The recommendation disappears and Idle Fleet Assets KPI decrements.
-6. **Chat Copilot** — Click the floating chat button (bottom right). Type "What shipments are affected?" and receive a watsonx.ai response.
+```bash
+curl http://localhost:4000/health
+```
+
+```json
+{
+  "status": "ok",
+  "build": "lifeclock-r2",
+  "features": ["sim", "lifeclock", "mcp", "audit-chain", "graph-router"],
+  "store": "memory",
+  "ai": "fallback"
+}
+```
+
+**If `build` is missing, an older server is still running.** The simulation
+controls, the moving map and the analytics chart all call routes that did not
+exist before, and they will appear broken. Stop that process and start again.
+
+## 4. Verify it works
+
+| Check | Expected |
+|---|---|
+| `npm test` in `src/backend` | 165 tests pass |
+| `curl localhost:4000/api/v1/lifeclock` | 45 clocks, worst first, each with both margins |
+| Press **Play**, set **600×** | Pins advance every couple of seconds, pointing along their heading |
+| Click a scenario card | Recommendations appear with ranked options |
+| **See on Map** | Blocked route in red, alternative in green |
+| **Verify chain** in the audit panel | `Intact — N records` |
+| Toggle **Light / Auto / Dark** | Whole page changes, including the map tiles |
+
+## 5. Optional — watsonx explanations
+
+Copy `src/.env.example` to `src/backend/.env` and fill in:
+
+```
+WATSONX_API_KEY=...
+WATSONX_PROJECT_ID=...
+WATSONX_URL=https://us-south.ml.cloud.ibm.com
+MODEL_ID=meta-llama/llama-4-maverick-17b-128e-instruct-fp8
+```
+
+Without it, `/health` reports `"ai": "fallback"` and explanations use templates.
+**Every number on screen is identical either way** — the engines decide, the
+model only phrases.
+
+## 6. Optional — IBM Bob
+
+`.bob/mcp.json` is already configured:
+
+```json
+{ "mcpServers": { "lifeclock": { "type": "streamable-http", "url": "http://127.0.0.1:4000/mcp" } } }
+```
+
+Restart Bob, open the MCP panel — `lifeclock` should show connected with 12
+tools. Then ask it *"which shipments are at risk?"* and afterwards *"approve the
+top recommendation"*. The first works. The second is **refused**, and the
+refusal appears in `GET /api/v1/audit`. See `docs/bob-usage.md`.
+
+## 7. The demo without a database or a network
+
+```bash
+cd src/backend
+npm run record         # drives the real engines, writes recordings/in-ke.ndjson
+npm run record:verify  # confirms the recording matches its manifest hash
+npm run demo           # replays it
+```
+
+The recording is engine output, not a script. Delete it, re-run `npm run record`
+with the same seed, and you get the same file.
 
 ## Troubleshooting
 
-| Issue | Solution |
-|---|---|
-| `MongoServerError: connect ECONNREFUSED` | Start MongoDB: `mongod` (macOS/Linux) or start MongoDB service (Windows) |
-| `npm run seed` fails with duplicate key error | Run `npm run seed` again — it clears collections before seeding |
-| Dashboard shows "Disconnected" badge | Ensure backend is running on port 4000: `npm start` in `src/backend/` |
-| KPI cards show 0 / no recommendations after disruption | The impact engine needs In Transit shipments — re-run `npm run seed` |
-| watsonx.ai returns errors in chat | Check `WATSONX_API_KEY` and `WATSONX_PROJECT_ID` in `src/backend/.env`. The app has grounded fallbacks so the dashboard still works. |
-| `npm install` fails on Windows with node-gyp errors | Run PowerShell as Administrator: `npm install --ignore-scripts` |
-| Port 4000 already in use | Kill the process: `npx kill-port 4000` then restart |
-| Port 3000 already in use | Next.js auto-increments to 3001 — check the terminal output for the actual port |
-
-## Quick Demo Walkthrough
-
-For a 3-minute end-to-end demo:
-
-1. Open `http://localhost:3000` — dashboard loads with 5 idle fleet assets
-2. Click **⚠️ LA Port Strike** — watch the AI Action Center populate
-3. Click **❄️ Chicago Blizzard** — second wave of recommendations
-4. Click **Approve & Execute** on a recommendation — observe KPI update + recommendation removal
-5. Wait 15–20 seconds — watch temperature spikes appear in the Live Sensor Feed (25% probability per 5s tick)
-6. When a spike fires: watch the Cold Chain Alerts KPI increment and a red alert appear in Active Incidents
-7. Open the AI Chat Copilot → type "Which shipments are most at risk and why?"
+| Symptom | Cause | Fix |
+|---|---|---|
+| Play/pause does nothing; nothing moves | Backend predates the sim routes | Check `/health` for `build`; restart the backend |
+| "Simulation controls unavailable" | Backend not reachable on `NEXT_PUBLIC_API_URL` | Confirm it is up on port 4000 |
+| Analytics chart empty | No readings yet | Press Play and wait a few seconds |
+| Map is a blank rectangle | OpenStreetMap tiles blocked | Needs internet for tiles; everything else works offline |
+| Server hangs ~15 s on boot | Probing for MongoDB | Normal without Mongo; it falls through to memory mode |
+| `npm run build` fails on `lightningcss` | `node_modules` installed on a different OS | Delete `node_modules` and reinstall on this machine |
+| Port 4000 in use | An older instance is still running | Kill it, or set `PORT=4001` and `NEXT_PUBLIC_API_URL` to match |
