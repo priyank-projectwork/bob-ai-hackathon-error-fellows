@@ -591,6 +591,83 @@ app.post("/api/v1/chat", requireDb, async (req, res) => {
 });
 
 // ── MCP (SDK Streamable HTTP transport) ─────────────────────────────────────
+// ── Simulated world (row 4) ──────────────────────────────────────────────────
+// The clock everything reads. Start it "now" so seeded relative offsets line up,
+// paused, at 60x — a demo minute is an hour of shipment time.
+const { World } = require("./sim/world");
+const { buildSimRouter } = require("./sim/routes");
+
+const world = new World({
+  startMs: Date.now(),
+  speed: Number(process.env.SIM_SPEED) || 60,
+  seed: Number(process.env.SIM_SEED) || 42,
+  mode: process.env.SIM_MODE || "simulate",
+});
+
+/** Shipments the world moves: in transit, with a route to move along. */
+async function loadMovingShipments() {
+  const docs = await Shipment.find({ status: "In Transit" }).lean();
+  return docs.map((d) => ({
+    ...d,
+    departedAtMs: d.departedAt ? new Date(d.departedAt).getTime() : world.clock.status().startMs,
+    speedKmh: d.speedKmh || 80,
+  }));
+}
+
+/**
+ * One door for telemetry, whatever produced it. The simulator, a real logger
+ * posting to /ingest/sensor and the replayer all arrive here, so the cold-chain
+ * pipeline downstream never knows or cares which mode it is running in.
+ */
+async function handleReading(reading) {
+  try {
+    const log = await SensorLog.create({
+      shipmentId: reading.shipmentId,
+      temperatureCelsius: reading.temperatureCelsius,
+      timestamp: new Date(reading.recordedAt ?? world.clock.now()),
+    });
+    io.emit("temperatureUpdate", {
+      shipmentId: reading.shipmentId,
+      temperatureCelsius: reading.temperatureCelsius,
+      ambientC: reading.ambientC ?? null,
+      unitMode: reading.unitMode ?? null,
+      doorOpen: reading.doorOpen ?? false,
+      position: reading.position ?? null,
+      recordedAt: reading.recordedAt ?? world.clock.now(),
+    });
+    eventBus.emit("sensor.reading.received", log);
+  } catch (err) {
+    console.error("[world] reading failed:", err.message);
+  }
+}
+
+world.configure({
+  loadShipments: loadMovingShipments,
+  onReading: handleReading,
+  onTick: async ({ simNowMs, shipments }) => {
+    io.emit("world.tick", {
+      simNowMs,
+      positions: shipments
+        .filter((s) => s.livePosition)
+        .map((s) => ({
+          shipmentId: s.shipmentId,
+          position: s.livePosition.position,
+          bearing: s.livePosition.bearing,
+          fractionDone: s.livePosition.fractionDone,
+          etaMs: s.livePosition.etaMs,
+        })),
+    });
+  },
+});
+world.loadScenario({ events: [] });
+
+app.use("/api/v1", buildSimRouter({
+  world,
+  requireDb,
+  loadShipments: loadMovingShipments,
+  onIngest: handleReading,
+}));
+
 require("./mcp/mount").mountMcp(app);
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -625,6 +702,7 @@ async function main() {
   const storeResult = await connectStore();
   if (storeResult.mode !== "none") {
     startSimulation();
+    world.start();
   }
 
   const PORT = Number(process.env.PORT) || 4000;
