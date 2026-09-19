@@ -17,7 +17,7 @@ team:
       email: "25mca119@charusat.edu.in"
 
 submission:
-  title: "SupplyChain AI Copilot — Supply Chain Disruption & Fleet Optimisation"
+  title: "LIFECLOCK — cold-chain control tower, operated by IBM Bob"
 
   problem_statement: >
     Supply chain operations teams managing cold-chain pharmaceutical shipments
@@ -29,21 +29,26 @@ submission:
     reacting too late — after the damage is done.
 
   solution_summary: >
-    SupplyChain AI Copilot is a real-time supply chain control tower that continuously
-    correlates live IoT sensor telemetry, active disruption events, shipment routes,
-    and fleet availability using deterministic engines for risk scoring, route
-    optimisation, and cold-chain excursion detection. An IBM watsonx.ai-powered
-    operations copilot (Llama 4 Maverick) overlays these structured results with
-    natural-language explanations, ranked recommendations, and human-in-the-loop
-    approval workflows — so operators can detect, triage, and act on disruptions
-    before cargo is compromised.
+    LIFECLOCK is a cold-chain control tower built on one idea: a shipment has two
+    deadlines. The schedule clock is hours until it is late; the stability clock is
+    hours until the cargo is no longer usable. Whichever is smaller is its life
+    clock, and every engine reads it. That split produces decisions a cost-and-time
+    router cannot reach — holding a vessel on ship power freezes the stability clock
+    while the schedule clock runs, so waiting can beat rerouting; and a cheaper,
+    faster route is rejected as infeasible when it outlasts the cargo, shown with
+    the shortfall rather than quietly dropped. Severity, disposition and the clock
+    are decided by rule engines with versioned regulatory profiles, never by the
+    model; watsonx explains the conclusion afterwards and the product is unchanged
+    without it. IBM Bob operates the tower through 12 MCP tools and is refused when
+    it tries to commit a decision, with the refusal written into a hash-chained
+    audit trail an operator can verify on screen.
 
   key_features:
-    - "Real-time IoT cold-chain excursion detection with GDP-compliant severity classification (Minor/Major/Critical) powered by watsonx.ai"
-    - "Event-driven disruption impact engine: maps port strikes, blizzards, and hurricanes to affected shipments using Haversine geospatial intersection"
-    - "Deterministic risk scoring engine with 6-factor weighted model (disruption exposure, deadline proximity, cargo criticality, cold-chain risk, financial exposure, route dependency)"
-    - "AI-powered route optimiser and fleet matcher: ranks rerouting alternatives and matches idle reefer trucks to impacted cold-chain shipments"
-    - "Live AI Operations Copilot (watsonx.ai) with full system-state context for natural-language Q&A, recommendation explanations, and approve/reject action workflows with audit trail"
+    - "Life clock: two clocks per shipment (schedule vs stability) with the binding one marked; every engine reads it"
+    - "Breach prediction from a Newton cooling fit — warns while the cargo is still in range, not after"
+    - "Regulatory severity decided by a magnitude x duration matrix with freeze override, MKT and versioned rule profiles — never by the LLM"
+    - "Real route search (Dijkstra + Yen k-shortest) over 40 nodes and 18 lanes, with landed cost and CO2; options that outlast the cargo are returned infeasible with the shortfall"
+    - "IBM Bob operates it through 12 MCP tools and is refused when it tries to commit, with the refusal in a verifiable hash-chained audit trail"
 
   tech_stack:
     languages: ["JavaScript", "TypeScript"]

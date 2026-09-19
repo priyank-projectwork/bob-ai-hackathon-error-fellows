@@ -1,6 +1,10 @@
-# 🚀 SupplyChain AI Copilot
+# LIFECLOCK
 
-> **Supply Chain Disruption Assistant & Fleet Utilisation Optimizer**  
+> **Every cold shipment has two deadlines: when it is late, and when it is dead.**
+> LIFECLOCK computes both, tells you which one bites first, and refuses any
+> reroute that outlasts the cargo.
+>
+> Supply Chain Disruption Assistant & Fleet Utilisation Optimizer
 > IBM Bob AI Hackathon 2026 — Team **Error Fellows** — Track **AI**
 
 ---
@@ -26,17 +30,50 @@ Supply chain operations teams managing cold-chain pharmaceutical shipments (vacc
 
 ## 💡 Solution
 
-SupplyChain AI Copilot is a real-time supply chain control tower that continuously correlates live IoT sensor telemetry, active disruption events, shipment routes, and fleet availability using deterministic engines for risk scoring, route optimisation, and cold-chain excursion detection. An IBM watsonx.ai-powered AI Operations Copilot (Llama 4 Maverick) overlays structured results with natural-language explanations, ranked recommendations, and human-in-the-loop approval workflows — so operators can detect, triage, and act on disruptions before cargo is compromised.
+A cold-chain control tower built on one idea: a shipment has **two clocks**. The
+schedule clock is hours until it is late. The stability clock is hours until the
+cargo is no longer usable. Whichever is smaller is its **life clock**, and every
+engine in the product reads it.
 
----
+That split produces decisions a cost-and-time router cannot reach. When a port
+strike stops a vessel, holding it on ship power *freezes the stability clock*
+while the schedule clock keeps running — so "wait" can beat "reroute" even
+though it arrives later. And a route that is cheaper and faster is **rejected as
+infeasible** when it outlasts the cargo, shown struck through with the shortfall
+rather than quietly dropped.
+
+Severity, disposition and the clock are decided by rule engines, never by the
+model. watsonx explains the engine's conclusion afterwards, and when it is
+unavailable nothing on screen changes.
+
+IBM Bob operates the tower through 12 MCP tools — and is **refused** when it
+tries to commit a decision, with the refusal written into a hash-chained audit
+trail you can verify in the UI.
 
 ## ✨ Key Features
 
-- **Real-time Cold-Chain Excursion Detection:** IoT temperature readings evaluated every 5 seconds against GDP-compliant rule profiles. Excursion severity (Minor/Major/Critical) is classified by watsonx.ai with regulatory-grounded rationale.
-- **Event-Driven Disruption Impact Engine:** Port strikes, blizzards, and hurricanes are mapped to affected shipments using Haversine geospatial intersection of shipment route legs against disruption geometry.
-- **Deterministic 6-Factor Risk Scoring:** Every shipment gets a transparent risk score (0–100) from disruption exposure, deadline proximity, cargo criticality, cold-chain risk, financial exposure, and route dependency — with named drivers shown to operators.
-- **AI Route Optimiser & Fleet Matcher:** Alternatives are ranked by cost/time/risk; idle reefer trucks are scored for compatibility and matched to impacted cold-chain shipments.
-- **AI Operations Copilot with Audit Trail:** Floating chat interface powered by watsonx.ai answers natural-language operational questions with live system context. Every approve/reject action generates an immutable audit event.
+- **The life clock.** Two clocks per shipment — schedule and stability — with the
+  binding one marked. Delay drains it, excursions drain it faster, depot power
+  stops it. `engines/viabilityClock.js`
+- **Breach prediction, not breach detection.** A Newton's-law-of-cooling fit over
+  recent readings says *"breach in 31 minutes, high confidence"* while the cargo
+  is still in range. `engines/breachPredictor.js`
+- **Regulatory severity by rule, not by prompt.** A magnitude × duration matrix
+  with a freeze override, cumulative band budgets, mean kinetic temperature, a
+  disposition and who must sign it — all tied to a versioned rule profile that
+  history is never re-judged under. `engines/regulatoryEngine.js`
+- **Real routing over real geography.** Dijkstra plus Yen's k-shortest across 40
+  nodes and 18 lanes, with blocked and delayed nodes, landed cost (freight +
+  fees + customs dwell + duty + expected spoilage) and CO₂ per option.
+- **Impact on the remaining path.** Point-to-segment intersection answering
+  *"enters the zone in 6.2 h"* or *"already past it"* — not just yes or no.
+- **A fleet matcher that respects physics.** Mode, temperature range, driver
+  hours, maintenance and pre-cool time are hard filters; scores are 0–100 and
+  every rejection carries its reason.
+- **Bob proposes, humans commit.** 12 MCP tools; the committing ones refuse an
+  agent and log the refusal into a verifiable hash chain.
+- **Runs on nothing.** No API key, no MongoDB, no network — `npm start` boots and
+  seeds itself.
 
 ---
 
