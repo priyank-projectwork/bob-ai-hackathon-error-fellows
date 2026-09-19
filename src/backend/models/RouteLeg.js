@@ -16,4 +16,6 @@ const routeLegSchema = new mongoose.Schema({
   status: { type: String, enum: ["Pending", "Active", "Completed", "Disrupted"], default: "Pending" }
 });
 
+routeLegSchema.index({ shipmentId: 1, sequenceNo: 1 });
+
 module.exports = mongoose.model("RouteLeg", routeLegSchema);

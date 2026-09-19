@@ -17,4 +17,6 @@ const disruptionSchema = new mongoose.Schema({
   sourceConfidence: { type: Number }
 });
 
+disruptionSchema.index({ status: 1 });
+
 module.exports = mongoose.model("Disruption", disruptionSchema);

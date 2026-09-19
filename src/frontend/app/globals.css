@@ -297,3 +297,95 @@ body {
   .lc-map .leaflet-marker-pane > .leaflet-marker-icon { transition: none !important; }
   .lc-pin { transition: none !important; }
 }
+
+/* ── Light mode for the main dashboard ─────────────────────────────────────
+   The dashboard predates the token system and hardcodes its dark palette
+   (bg-[#060b14], slate-900, slate-800…). Rewriting 1,100 lines of class names
+   on submission day is the wrong risk, so light mode remaps those surfaces
+   here instead. Everything stays keyed to the same tokens, so there is still
+   one palette — this is a bridge, not a second theme.
+   --------------------------------------------------------------------------- */
+:root[data-theme="light"] {
+  --panel: #ffffff;
+  --panel-sunk: #f2f5f9;
+  --hairline: #dde3ec;
+  --ink: #0f172a;
+  --ink-2: #334155;
+  --ink-3: #64748b;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --panel: #ffffff;
+    --panel-sunk: #f2f5f9;
+    --hairline: #dde3ec;
+    --ink: #0f172a;
+    --ink-2: #334155;
+    --ink-3: #64748b;
+  }
+}
+
+:root[data-theme="light"] body,
+:root:not([data-theme="dark"]) body {
+  background: var(--bg);
+}
+
+/* Applies only when a light palette is active; dark mode is untouched. */
+:root[data-theme="light"] .lc-legacy,
+:root:not([data-theme="dark"]) .lc-legacy {
+  color: var(--ink);
+}
+
+:root[data-theme="light"] .lc-legacy [class*="bg-[#060b14]"],
+:root[data-theme="light"] .lc-legacy [class*="bg-[#0b1424]"],
+:root[data-theme="light"] .lc-legacy [class*="bg-[#0a0f1a]"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="bg-[#060b14]"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="bg-[#0b1424]"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="bg-[#0a0f1a]"] {
+  background-color: var(--panel) !important;
+}
+
+:root[data-theme="light"] .lc-legacy [class*="bg-slate-9"],
+:root[data-theme="light"] .lc-legacy [class*="bg-slate-8"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="bg-slate-9"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="bg-slate-8"] {
+  background-color: var(--panel-sunk) !important;
+}
+
+:root[data-theme="light"] .lc-legacy [class*="border-slate-8"],
+:root[data-theme="light"] .lc-legacy [class*="border-slate-7"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="border-slate-8"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="border-slate-7"] {
+  border-color: var(--hairline) !important;
+}
+
+/* Slate text was chosen for contrast against near-black. On white it either
+   vanishes (600/700) or shouts (100/200), so both ends are remapped. */
+:root[data-theme="light"] .lc-legacy [class*="text-slate-1"],
+:root[data-theme="light"] .lc-legacy [class*="text-slate-2"],
+:root[data-theme="light"] .lc-legacy [class*="text-slate-3"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="text-slate-1"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="text-slate-2"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="text-slate-3"] {
+  color: var(--ink) !important;
+}
+
+:root[data-theme="light"] .lc-legacy [class*="text-slate-4"],
+:root[data-theme="light"] .lc-legacy [class*="text-slate-5"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="text-slate-4"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="text-slate-5"] {
+  color: var(--ink-2) !important;
+}
+
+:root[data-theme="light"] .lc-legacy [class*="text-slate-6"],
+:root[data-theme="light"] .lc-legacy [class*="text-slate-7"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="text-slate-6"],
+:root:not([data-theme="dark"]) .lc-legacy [class*="text-slate-7"] {
+  color: var(--ink-3) !important;
+}
+
+/* Map tiles are inverted for the dark theme; in light mode show them as drawn. */
+:root[data-theme="light"] .leaflet-tile,
+:root:not([data-theme="dark"]) .leaflet-tile { filter: none !important; }
+:root[data-theme="light"] .leaflet-container,
+:root:not([data-theme="dark"]) .leaflet-container { background: var(--panel-sunk) !important; }

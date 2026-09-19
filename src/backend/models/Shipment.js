@@ -43,4 +43,7 @@ const shipmentSchema = new mongoose.Schema({
   declaredValueUsd: { type: Number }
 });
 
+shipmentSchema.index({ shipmentId: 1 }, { unique: true });
+shipmentSchema.index({ status: 1 });
+
 module.exports = mongoose.model("Shipment", shipmentSchema);

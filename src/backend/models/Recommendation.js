@@ -11,4 +11,6 @@ const recommendationSchema = new mongoose.Schema({
   status: { type: String, enum: ["Pending", "Approved", "Rejected"], default: "Pending" }
 });
 
+recommendationSchema.index({ status: 1, createdAt: -1 });
+
 module.exports = mongoose.model("Recommendation", recommendationSchema);

@@ -15,4 +15,10 @@ const sensorLogSchema = new mongoose.Schema({
   regulatorySeverity: String,
 });
 
+// The analytics chart and the cold-chain window both query by shipment and
+// time. Without these every read was a collection scan, and the simulator adds
+// a document per shipment every ten simulated minutes.
+sensorLogSchema.index({ shipmentId: 1, timestamp: -1 });
+sensorLogSchema.index({ timestamp: -1 });
+
 module.exports = mongoose.model("SensorLog", sensorLogSchema);

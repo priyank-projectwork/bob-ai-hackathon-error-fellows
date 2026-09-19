@@ -794,7 +794,7 @@ export default function Dashboard() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-[#060b14] text-slate-100 font-sans">
+    <div className="lc-legacy min-h-screen bg-[#060b14] text-slate-100 font-sans">
 
       {/* ══ NAV ════════════════════════════════════════════════════════════════ */}
       <header className="sticky top-0 z-50 border-b border-slate-800/60 bg-[#060b14]/92 backdrop-blur-lg">

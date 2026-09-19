@@ -16,4 +16,6 @@ const alertSchema = new mongoose.Schema({
   acknowledgedAtMs: { type: Number },
 });
 
+alertSchema.index({ status: 1, createdAt: -1 });
+
 module.exports = mongoose.model("Alert", alertSchema);

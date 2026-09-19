@@ -417,33 +417,61 @@ app.get("/api/v1/command-center", requireDb, async (req, res) => {
 
 app.get("/api/analytics/temperature", requireDb, async (req, res) => {
   try {
-    const logs = await SensorLog.find().sort({ timestamp: 1 });
+    // Aggregate in the database over a bounded window.
+    //
+    // This used to do SensorLog.find() with no filter and no limit, then group
+    // in Node. The simulator writes a reading per shipment every ten simulated
+    // minutes, so at 900x that is thousands of documents within a minute of
+    // pressing Play — the request grew until it timed out and the chart showed
+    // "Failed to fetch".
+    const hours = Math.min(Number(req.query.hours) || 24, 168);
+    const since = new Date(world.clock.now() - hours * 3.6e6);
 
-    // Group logs by hour × shipment → one column per shipment in the chart
-    // Result: [{ time: "14:00", "SHIP-MVP-101": 4.2, "SHIP-MVP-102": 5.1, … }, …]
-    const hourlyData = {};
-    for (const log of logs) {
-      const hourStr = new Date(log.timestamp).toISOString().slice(0, 13) + ":00:00Z";
-      const timeLabel = new Date(hourStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      if (!hourlyData[hourStr]) hourlyData[hourStr] = { time: timeLabel };
-      const bucket = hourlyData[hourStr];
-      const key = log.shipmentId;
-      if (!bucket[key]) bucket[key] = { sum: 0, count: 0 };
-      bucket[key].sum   += log.temperatureCelsius;
-      bucket[key].count += 1;
+    // Chart one line per shipment, capped so the legend stays readable.
+    const maxSeries = Math.min(Number(req.query.series) || 6, 12);
+    const busiest = await SensorLog.aggregate([
+      { $match: { timestamp: { $gte: since } } },
+      { $group: { _id: "$shipmentId", n: { $sum: 1 } } },
+      { $sort: { n: -1 } },
+      { $limit: maxSeries },
+    ]);
+    const ids = busiest.map((b) => b._id);
+    if (!ids.length) return res.json({ data: [], shipmentIds: [], hours });
+
+    const rows = await SensorLog.aggregate([
+      { $match: { timestamp: { $gte: since }, shipmentId: { $in: ids } } },
+      {
+        $group: {
+          _id: {
+            shipmentId: "$shipmentId",
+            bucket: { $dateTrunc: { date: "$timestamp", unit: "hour" } },
+          },
+          avgC: { $avg: "$temperatureCelsius" },
+          maxC: { $max: "$temperatureCelsius" },
+        },
+      },
+      { $sort: { "_id.bucket": 1 } },
+      { $limit: 2000 },
+    ]);
+
+    const byBucket = new Map();
+    for (const r of rows) {
+      const key = r._id.bucket.toISOString();
+      if (!byBucket.has(key)) {
+        byBucket.set(key, {
+          time: new Date(key).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        });
+      }
+      byBucket.get(key)[r._id.shipmentId] = Number(r.avgC.toFixed(2));
     }
 
-    const chartData = Object.values(hourlyData).map((bucket) => {
-      const row = { time: bucket.time };
-      for (const [k, v] of Object.entries(bucket)) {
-        if (k === "time") continue;
-        row[k] = parseFloat((v.sum / v.count).toFixed(2));
-      }
-      return row;
+    res.json({
+      data: [...byBucket.values()],
+      shipmentIds: ids,
+      hours,
     });
-
-    res.json({ data: chartData });
   } catch (error) {
+    console.error("[analytics]", error.message);
     res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
