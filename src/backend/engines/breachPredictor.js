@@ -47,15 +47,26 @@ function fitNewtonK({ samples, ambientC }) {
   const T0 = samples[0].tempC;
   const Tamb = ambientC;
 
+  // x is hours since the first sample. Callers may supply it directly as tH,
+  // or as an epoch in timestampMs/at — derive it either way rather than
+  // silently producing NaN when the field name does not match.
+  const t0ms = samples[0].timestampMs ?? samples[0].at ?? null;
+  const hoursAt = (s, i) => {
+    if (Number.isFinite(s.tH)) return s.tH;
+    const ms = s.timestampMs ?? s.at ?? null;
+    if (ms !== null && t0ms !== null) return (ms - t0ms) / 3.6e6;
+    return i; // last resort: evenly spaced
+  };
+
   // Build (x, y) pairs; skip any sample where the log argument is non-positive
   const pairs = [];
-  for (const s of samples) {
+  samples.forEach((s, i) => {
     const num = Tamb - s.tempC;
     const den = Tamb - T0;
-    if (num <= 0 || den <= 0) continue;
+    if (num <= 0 || den <= 0) return;
     const y = Math.log(num / den);
-    pairs.push({ x: s.tH, y });
-  }
+    pairs.push({ x: hoursAt(s, i), y });
+  });
 
   if (pairs.length < 2) return { k: NaN, r2: 0 };
 
@@ -135,8 +146,12 @@ function predict({ samples, ambientC, profile, nowMs }) {
     const { k, r2 } = fitNewtonK({ samples: fitted, ambientC });
 
     if (!isNaN(k) && r2 >= 0.8) {
-      const T0 = samples[0].tempC;
-      const tBreachH = timeToBreachNewton({ k, T0, TlimC, TambC: ambientC });
+      // Predict from where the cargo is NOW, not from the first sample in the
+      // window. Using samples[0] answers "how long from the start of the
+      // window", which has already partly elapsed - so a shipment minutes from
+      // breaching could report a time beyond the alerting horizon and stay
+      // silent. The operator needs the time they have left.
+      const tBreachH = timeToBreachNewton({ k, T0: T_now, TlimC, TambC: ambientC });
 
       if (tBreachH > BREACH_HORIZON_H) return null;
 

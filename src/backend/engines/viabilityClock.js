@@ -44,13 +44,33 @@ const ACTIVE_POWER_SOURCES = new Set([
  * @param {string}  p.powerSource        - current power source string
  * @returns {object}
  */
+/**
+ * Accepts either [{key, ...}] or {key: {...}} and always returns {key: {...}}.
+ */
+function normaliseBands(raw) {
+  if (!raw) return {};
+  if (Array.isArray(raw)) {
+    const out = {};
+    for (const b of raw) {
+      const key = b.key ?? b.name;
+      if (key) out[key] = b;
+    }
+    return out;
+  }
+  return raw;
+}
+
 function computeClock({ nowMs, needByAtMs, predictedEtaAtMs, profile, thermal, powerSource }) {
   // scheduleMarginH: plain calendar arithmetic, hours until deadline vs ETA
   const scheduleMarginH = (needByAtMs - predictedEtaAtMs) / 3.6e6;
 
   // ── Stability margin ──────────────────────────────────────────────────────
   // Budget accounting: PLAIN time-out-of-range, no multiplier anywhere.
-  const bands = profile.bands || {};
+  // Profiles carry bands as an ARRAY ([{key, budgetH, ...}]) because that is
+  // what the seed data and Mongo store. Older fixtures pass an object keyed by
+  // band name. Normalise both to one shape — getting this wrong silently made
+  // the clock never drain, because Object.entries on an array yields "0","1".
+  const bands = normaliseBands(profile.bands);
   const consumedH = thermal.consumedH || {};
 
   // Bands that share a budget are counted once.
@@ -190,6 +210,7 @@ function financials({ lifeClockAtDeliveryH, declaredValueUsd, doses }) {
 }
 
 module.exports = {
+  normaliseBands,
   computeClock,
   feasibility,
   financials,

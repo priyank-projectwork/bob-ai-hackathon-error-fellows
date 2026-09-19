@@ -303,6 +303,7 @@ const getMockUser = () => ({ actorType: "Operations Control Tower Manager", acto
 // is tagged with the operator-agent role, which policy.js refuses to let commit.
 const { AGENT_ROLE, can, statusFor } = require("./engines/policy");
 const auditService = require("./services/audit");
+const coldChain = require("./services/coldChain");
 
 const HUMAN_OPERATOR = { sub: "duty-controller", roles: ["controller", "qa_rp"] };
 const BOB_ACTOR = { sub: "bob", roles: [AGENT_ROLE] };
@@ -635,7 +636,26 @@ async function handleReading(reading) {
       position: reading.position ?? null,
       recordedAt: reading.recordedAt ?? world.clock.now(),
     });
-    eventBus.emit("sensor.reading.received", log);
+    // New pipeline: sanity -> bands -> rules-based severity -> life clock ->
+    // breach prediction -> coalesced alert. The legacy handler is left in
+    // place behind LEGACY_SIM for comparison but no longer runs by default.
+    const result = await coldChain.processReading(reading, {
+      emit: (evt, payload) => io.emit(evt, payload),
+    });
+    if (result?.clock) {
+      io.emit("lifeclock.updated", {
+        shipmentId: reading.shipmentId,
+        lifeClockH: result.clock.lifeClockH,
+        state: result.clock.state,
+        bindingConstraint: result.clock.bindingConstraint,
+        scheduleMarginH: result.clock.scheduleMarginH,
+        stabilityMarginH: result.clock.stabilityMarginH,
+      });
+    }
+    if (result?.prediction) {
+      io.emit("breach.predicted", { shipmentId: reading.shipmentId, ...result.prediction });
+    }
+    if (process.env.LEGACY_SIM === "1") eventBus.emit("sensor.reading.received", log);
   } catch (err) {
     console.error("[world] reading failed:", err.message);
   }
@@ -667,6 +687,97 @@ app.use("/api/v1", buildSimRouter({
   loadShipments: loadMovingShipments,
   onIngest: handleReading,
 }));
+
+// ── Cold chain (row 7) ───────────────────────────────────────────────────────
+
+/** The life clock for one shipment: two clocks, the binding one, and the money. */
+app.get("/api/v1/lifeclock/:shipmentId", requireDb, async (req, res) => {
+  try {
+    const lc = await coldChain.lifeClockFor(req.params.shipmentId, world.clock.now());
+    if (!lc) return res.status(404).json({ error: "shipment or rule profile not found" });
+    res.json(lc);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Every shipment's clock, worst first — the triage view. */
+app.get("/api/v1/lifeclock", requireDb, async (req, res) => {
+  try {
+    const nowMs = world.clock.now();
+    const shipments = await Shipment.find({ status: "In Transit" }, { shipmentId: 1 }).lean();
+    const clocks = [];
+    for (const s of shipments) {
+      const lc = await coldChain.lifeClockFor(s.shipmentId, nowMs);
+      if (lc) clocks.push(lc);
+    }
+    clocks.sort((a, b) => a.lifeClockH - b.lifeClockH);
+    res.json({ nowMs, count: clocks.length, clocks });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/v1/excursions", requireDb, async (req, res) => {
+  try {
+    const q = req.query.status ? { status: req.query.status } : {};
+    res.json({ excursions: await Excursion.find(q).sort({ startedAt: -1 }).limit(100).lean() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/v1/excursions/:id", requireDb, async (req, res) => {
+  try {
+    const exc = await Excursion.findById(req.params.id).lean();
+    if (!exc) return res.status(404).json({ error: "excursion not found" });
+    res.json(exc);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Sign a disposition. Major and Critical need the QA/Responsible Person role,
+ * and an agent is refused whatever role it holds — see engines/policy.js.
+ */
+app.post("/api/v1/excursions/:id/disposition", requireDb,
+  requirePermission("sign_disposition", "Excursion"), async (req, res) => {
+  try {
+    const { decision, reason } = req.body || {};
+    const allowed = ["release", "release_with_note", "quarantine_qa", "reject"];
+    if (!allowed.includes(decision)) {
+      return res.status(400).json({ error: "decision must be one of " + allowed.join(", ") });
+    }
+    const exc = await Excursion.findById(req.params.id);
+    if (!exc) return res.status(404).json({ error: "excursion not found" });
+
+    const event = await auditService.record({
+      actor: req.actor,
+      action: "sign_disposition",
+      entityType: "Excursion",
+      entityId: String(exc._id),
+      outcome: "allowed",
+      payload: { decision, reason: reason ?? null, severity: exc.severity, recommended: exc.recommendedDisposition },
+    });
+
+    exc.disposition = {
+      decision,
+      signedBy: req.actor.sub,
+      signedAtMs: world.clock.now(),
+      reason: reason ?? null,
+      auditHash: event.hash,
+    };
+    exc.status = "Closed";
+    exc.endedAt = exc.endedAt ?? world.clock.now();
+    await exc.save();
+
+    io.emit("excursion.disposition", { id: String(exc._id), decision, signedBy: req.actor.sub });
+    res.json({ ok: true, disposition: exc.disposition, auditHash: event.hash });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 require("./mcp/mount").mountMcp(app);
 // ─────────────────────────────────────────────────────────────────────────────

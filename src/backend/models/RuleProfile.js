@@ -49,6 +49,7 @@ const ruleProfileSchema = new mongoose.Schema({
     applies: { type: Boolean, default: true },
   },
 
+  excursionOpen: { minConsecutiveSamples: Number, minSpanMin: Number },
   qaMarginH: { type: Number, default: 24 },
   packaging: { kind: String, holdQualH: Number, holdQualAmbientC: Number },
   sensor: {

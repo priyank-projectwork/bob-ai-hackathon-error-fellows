@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "seed": "node seed.js",
-    "test": "node --test engines/ sim/ data/"
+    "test": "node --test engines/ sim/ data/ services/"
   },
   "keywords": [],
   "author": "",
