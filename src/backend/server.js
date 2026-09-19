@@ -1,3 +1,5 @@
+"use strict";
+require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -25,7 +27,18 @@ const { getRouteAlternatives } = require("./engines/routeOptimizer");
 const { rankFleetMatches } = require("./engines/fleetMatcher");
 
 // AI Service
-const { classifyExcursion, generateReroutingStrategy, processChatQuery } = require("./aiService");
+const { classifyExcursion, generateReroutingStrategy, processChatQuery, AI_ENABLED } = require("./aiService");
+
+// Store
+const { connectStore, getStoreMode } = require("./store/index");
+
+// Middleware: reject DB-backed requests when store is "none"
+function requireDb(req, res, next) {
+  if (getStoreMode() === "none") {
+    return res.status(503).json({ error: "database unavailable" });
+  }
+  next();
+}
 
 const app = express();
 app.use(cors());
@@ -33,8 +46,6 @@ app.use(express.json());
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/bob-logistics-hackathon";
-mongoose.connect(MONGO_URI).then(() => console.log("✅ MongoDB connected"));
 
 // Internal Event Bus (Mocking BullMQ/Redis)
 const eventBus = new EventEmitter();
@@ -272,7 +283,7 @@ const startSimulation = async () => {
 // API ENDPOINTS
 // ---------------------------------------------------------
 
-app.get("/api/locations", async (req, res) => {
+app.get("/api/locations", requireDb, async (req, res) => {
   try {
     const shipments = await Shipment.find({ status: "In Transit" }).populate("routeLegs");
     const fleets = await FleetAsset.find({ status: "Idle" });
@@ -286,24 +297,28 @@ app.get("/api/locations", async (req, res) => {
 // Mocking "Operations Control Tower Manager" via header or just hardcoded.
 const getMockUser = () => ({ actorType: "Operations Control Tower Manager", actorId: "admin-123" });
 
-app.get("/api/v1/command-center", async (req, res) => {
-  const activeDisruptions = await Disruption.find({ status: "Active" });
-  const idleFleets = await FleetAsset.find({ status: "Idle" });
-  const openAlerts = await Alert.find({ status: "Open" }).sort({ createdAt: -1 });
-  const pendingRecs = await Recommendation.find({ status: "Pending" });
-  const shipments = await Shipment.find();
-  
-  const kpis = {
-    activeDisruptions: activeDisruptions.length,
-    idleAssets: idleFleets.length,
-    criticalShipments: shipments.filter(s => getRiskBand(s.riskScore) === "CRITICAL").length,
-    openColdChainAlerts: openAlerts.filter(a => a.entityType === "Excursion").length
-  };
-  
-  res.json({ kpis, alerts: openAlerts, recommendations: pendingRecs });
+app.get("/api/v1/command-center", requireDb, async (req, res) => {
+  try {
+    const activeDisruptions = await Disruption.find({ status: "Active" });
+    const idleFleets = await FleetAsset.find({ status: "Idle" });
+    const openAlerts = await Alert.find({ status: "Open" }).sort({ createdAt: -1 });
+    const pendingRecs = await Recommendation.find({ status: "Pending" });
+    const shipments = await Shipment.find();
+
+    const kpis = {
+      activeDisruptions: activeDisruptions.length,
+      idleAssets: idleFleets.length,
+      criticalShipments: shipments.filter(s => getRiskBand(s.riskScore) === "CRITICAL").length,
+      openColdChainAlerts: openAlerts.filter(a => a.entityType === "Excursion").length
+    };
+
+    res.json({ kpis, alerts: openAlerts, recommendations: pendingRecs });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch command center data" });
+  }
 });
 
-app.get("/api/analytics/temperature", async (req, res) => {
+app.get("/api/analytics/temperature", requireDb, async (req, res) => {
   try {
     const logs = await SensorLog.find().sort({ timestamp: 1 });
 
@@ -336,7 +351,7 @@ app.get("/api/analytics/temperature", async (req, res) => {
   }
 });
 
-app.post("/api/disruptions", async (req, res) => {
+app.post("/api/disruptions", requireDb, async (req, res) => {
   try {
     const { disruptionType, location } = req.body;
 
@@ -395,7 +410,7 @@ app.post("/api/disruptions", async (req, res) => {
   }
 });
 
-app.post("/api/v1/recommendations/:id/approve", async (req, res) => {
+app.post("/api/v1/recommendations/:id/approve", requireDb, async (req, res) => {
   try {
     const rec = await Recommendation.findById(req.params.id);
     if (!rec) return res.status(404).json({ error: "Recommendation not found" });
@@ -423,7 +438,7 @@ app.post("/api/v1/recommendations/:id/approve", async (req, res) => {
   }
 });
 
-app.post("/api/v1/recommendations/:id/reject", async (req, res) => {
+app.post("/api/v1/recommendations/:id/reject", requireDb, async (req, res) => {
   try {
     const rec = await Recommendation.findById(req.params.id);
     if (!rec) return res.status(404).json({ error: "Recommendation not found" });
@@ -446,7 +461,7 @@ app.post("/api/v1/recommendations/:id/reject", async (req, res) => {
 });
 
 // ── Reset endpoint: wipe all state, re-seed shipments & fleets from DB ────────
-app.post("/api/v1/reset", async (req, res) => {
+app.post("/api/v1/reset", requireDb, async (req, res) => {
   try {
     await Disruption.updateMany({}, { $set: { status: "Resolved" } });
     await Recommendation.updateMany({}, { $set: { status: "Superseded" } });
@@ -459,7 +474,7 @@ app.post("/api/v1/reset", async (req, res) => {
   }
 });
 
-app.get("/api/v1/audit", async (req, res) => {
+app.get("/api/v1/audit", requireDb, async (req, res) => {
   try {
     const events = await AuditEvent.find().sort({ createdAt: -1 }).limit(50).lean();
     res.json({ events });
@@ -468,7 +483,7 @@ app.get("/api/v1/audit", async (req, res) => {
   }
 });
 
-app.post("/api/v1/chat", async (req, res) => {
+app.post("/api/v1/chat", requireDb, async (req, res) => {
   try {
     const { message } = req.body;
     
@@ -494,12 +509,22 @@ app.post("/api/v1/chat", async (req, res) => {
   }
 });
 
-mongoose.connection.once("open", () => {
-  startSimulation();
-});
-
 // ── MCP (SDK Streamable HTTP transport) ─────────────────────────────────────
 require("./mcp/mount").mountMcp(app);
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Health check ─────────────────────────────────────────────────────────────
+const startTime = Date.now();
+app.get("/health", (req, res) => {
+  const { version } = require("./package.json");
+  res.status(200).json({
+    status: "ok",
+    uptimeSec: Math.floor((Date.now() - startTime) / 1000),
+    store: getStoreMode(),
+    ai: AI_ENABLED() ? "watsonx" : "fallback",
+    version,
+  });
+});
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Global error handler ─────────────────────────────────────────────────────
@@ -515,7 +540,20 @@ app.use((err, req, res, next) => {
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
-server.listen(4000, () => {
-  console.log("🚀 Server running on http://127.0.0.1:4000");
+async function main() {
+  const storeResult = await connectStore();
+  if (storeResult.mode !== "none") {
+    startSimulation();
+  }
+
+  const PORT = Number(process.env.PORT) || 4000;
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on http://127.0.0.1:${PORT}`);
+  });
+}
+
+main().catch((err) => {
+  console.error("Fatal startup error:", err);
+  process.exit(1);
 });
 
