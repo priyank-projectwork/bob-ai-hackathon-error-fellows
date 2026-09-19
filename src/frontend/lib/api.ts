@@ -64,6 +64,9 @@ export type ClockState = "green" | "amber" | "red" | "black";
 
 export interface Health {
   status: string;
+  /** Present only on the current build — absent means a stale server. */
+  build?: string;
+  features?: string[];
   uptimeSec: number;
   store: "mongo" | "memory" | "none";
   ai: "watsonx" | "fallback";

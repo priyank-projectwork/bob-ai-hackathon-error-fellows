@@ -40,11 +40,19 @@ export function TimeBar({ onTick }: { onTick?: (s: SimStatus) => void }) {
     }
   };
 
+  // A stale backend is the single most common reason the controls do nothing,
+  // so say so plainly rather than sitting there inert.
   if (error) {
     return (
       <div className="lc-card flex items-center gap-3 px-4 py-2.5 text-sm" style={{ borderColor: "var(--danger)", background: "var(--danger-bg)" }}>
-        <span className="font-semibold" style={{ color: "var(--danger)" }}>Backend unreachable</span>
-        <span className="opacity-70">{error}</span>
+        <span className="font-semibold" style={{ color: "var(--danger)" }}>
+          Simulation controls unavailable
+        </span>
+        <span className="lc-muted">
+          {/(404|not found)/i.test(error)
+            ? "the backend is running an older build — restart it (npm start in src/backend)"
+            : error}
+        </span>
         <button onClick={refresh} className="lc-btn ml-auto">
           Retry
         </button>

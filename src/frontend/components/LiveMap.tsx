@@ -66,7 +66,7 @@ const makeWaypointIcon = (label: string, color: string) =>
       <div style="width:10px;height:10px;border-radius:50%;background:${color};
         border:2px solid rgba(255,255,255,0.8);box-shadow:0 0 0 2px ${color}66;"></div>
       <div style="
-        margin-top:3px;background:rgba(6,11,20,0.92);border:1px solid ${color}66;
+        margin-top:3px;background:var(--surface);border:1px solid ${color}66;
         color:${color};font-size:9px;font-weight:700;white-space:nowrap;
         padding:1px 5px;border-radius:3px;letter-spacing:0.04em;
         font-family:system-ui,sans-serif;text-transform:uppercase;">
@@ -443,7 +443,7 @@ export default function LiveMap({
       <MapContainer
         center={center}
         zoom={4}
-        style={{ height:"100%", width:"100%", background:"#060b14" }}
+        style={{ height:"100%", width:"100%", background:"var(--surface-raised)" }}
         zoomControl={false}
         ref={mapRef as any}
       >
@@ -578,14 +578,14 @@ export default function LiveMap({
       {/* ── Control overlay (top-right) ─────────────────────────────────────── */}
       <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-1.5">
         <button onClick={() => mapRef.current?.zoomIn(1)}
-          className="w-8 h-8 rounded-lg bg-slate-900/90 border border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:text-white transition-all flex items-center justify-center text-base font-light backdrop-blur-sm shadow-lg"
+          className="w-8 h-8 rounded-lg lc-bg-sunk border lc-hair lc-ink hover:lc-bg-sunk hover:text-white transition-all flex items-center justify-center text-base font-light backdrop-blur-sm shadow-lg"
           title="Zoom in">+</button>
         <button onClick={() => mapRef.current?.zoomOut(1)}
-          className="w-8 h-8 rounded-lg bg-slate-900/90 border border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:text-white transition-all flex items-center justify-center text-base font-light backdrop-blur-sm shadow-lg"
+          className="w-8 h-8 rounded-lg lc-bg-sunk border lc-hair lc-ink hover:lc-bg-sunk hover:text-white transition-all flex items-center justify-center text-base font-light backdrop-blur-sm shadow-lg"
           title="Zoom out">−</button>
-        <div className="h-px bg-slate-800 mx-1" />
+        <div className="h-px lc-bg-sunk mx-1" />
         <button onClick={fitAll}
-          className="w-8 h-8 rounded-lg bg-slate-900/90 border border-blue-700/40 text-blue-400 hover:bg-blue-900/30 hover:border-blue-500 transition-all flex items-center justify-center backdrop-blur-sm shadow-lg"
+          className="w-8 h-8 rounded-lg lc-bg-sunk border border-blue-700/40 text-blue-400 hover:bg-blue-900/30 hover:border-blue-500 transition-all flex items-center justify-center backdrop-blur-sm shadow-lg"
           title="Fit all shipments">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
@@ -593,7 +593,7 @@ export default function LiveMap({
         </button>
         {disruptions.length > 0 && (
           <button onClick={fitDisruptions}
-            className="w-8 h-8 rounded-lg bg-slate-900/90 border border-red-700/40 text-red-400 hover:bg-red-900/30 hover:border-red-500 transition-all flex items-center justify-center backdrop-blur-sm shadow-lg animate-pulse"
+            className="w-8 h-8 rounded-lg lc-bg-sunk border border-red-700/40 text-red-400 hover:bg-red-900/30 hover:border-red-500 transition-all flex items-center justify-center backdrop-blur-sm shadow-lg animate-pulse"
             title="Zoom to disruption">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
@@ -608,14 +608,14 @@ export default function LiveMap({
         {/* Status badges — always visible */}
         {!showComparison && (
           <div className="flex gap-1.5 flex-wrap">
-            <span className="text-[10px] font-bold bg-[#060b14]/80 border border-blue-500/25 text-blue-400 px-2 py-0.5 rounded-full backdrop-blur-sm">
+            <span className="text-[10px] font-bold lc-bg-panel border border-blue-500/25 text-blue-400 px-2 py-0.5 rounded-full backdrop-blur-sm">
               {shipments.length} shipments
             </span>
-            <span className="text-[10px] font-bold bg-[#060b14]/80 border border-emerald-500/25 text-emerald-400 px-2 py-0.5 rounded-full backdrop-blur-sm">
+            <span className="text-[10px] font-bold lc-bg-panel border border-emerald-500/25 text-emerald-400 px-2 py-0.5 rounded-full backdrop-blur-sm">
               {fleets.length} idle fleet
             </span>
             {disruptions.length > 0 && (
-              <span className="text-[10px] font-bold bg-[#060b14]/80 border border-red-500/30 text-red-400 px-2 py-0.5 rounded-full backdrop-blur-sm animate-pulse">
+              <span className="text-[10px] font-bold lc-bg-panel border border-red-500/30 text-red-400 px-2 py-0.5 rounded-full backdrop-blur-sm animate-pulse">
                 ▲ {disruptions.length} disruption{disruptions.length > 1 ? "s" : ""}
               </span>
             )}
@@ -628,21 +628,21 @@ export default function LiveMap({
               AI SOLUTION section: the new route with concrete metrics
         ─────────────────────────────────────────────────────────────────── */}
         {showComparison && activeRecMeta && (
-          <div data-tour="map-comparison" className="bg-[#060b14]/95 border border-slate-700/60 rounded-xl overflow-hidden backdrop-blur-md shadow-2xl shadow-black/60 w-[310px]">
+          <div data-tour="map-comparison" className="lc-bg-panel border lc-hair rounded-xl overflow-hidden backdrop-blur-md shadow-2xl shadow-black/60 w-[310px]">
             {/* Header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800/60 bg-slate-900/40">
+            <div className="flex items-center justify-between px-3 py-2 border-b lc-hair lc-bg-sunk">
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">AI Route Comparison</span>
+                <span className="text-[9px] font-bold uppercase tracking-widest lc-ink-2">AI Route Comparison</span>
               </div>
-              <span className="text-[9px] font-mono text-slate-600">{activeRecMeta.shipmentId}</span>
+              <span className="text-[9px] font-mono lc-ink-3">{activeRecMeta.shipmentId}</span>
             </div>
 
             {/* PROBLEM row */}
-            <div className="px-3 pt-2.5 pb-2 border-b border-slate-800/40">
+            <div className="px-3 pt-2.5 pb-2 border-b lc-hair">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <span className="text-[8px] font-bold uppercase tracking-widest text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Problem</span>
-                <span className="text-[9px] text-slate-600">Why the original route failed</span>
+                <span className="text-[9px] lc-ink-3">Why the original route failed</span>
               </div>
               <div className="flex items-start gap-2">
                 {/* Red blocked route indicator */}
@@ -652,13 +652,13 @@ export default function LiveMap({
                   <span className="w-2 h-2 rounded-full bg-red-500/50" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[10px] text-slate-300 font-semibold">
+                  <div className="text-[10px] lc-ink font-semibold">
                     {activeRecMeta.origin} → {activeRecMeta.destination}
                   </div>
                   <div className="text-[10px] text-red-400 mt-0.5 leading-snug">
                     ✕ Blocked by {activeRecMeta.disruption}
                   </div>
-                  <div className="text-[9px] text-slate-600 mt-0.5">
+                  <div className="text-[9px] lc-ink-3 mt-0.5">
                     {activeRecMeta.cargo} cargo · route now impassable
                   </div>
                 </div>
@@ -669,7 +669,7 @@ export default function LiveMap({
             <div className="px-3 pt-2.5 pb-2.5">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <span className="text-[8px] font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">AI Solution</span>
-                <span className="text-[9px] text-slate-600">Recommended alternate route</span>
+                <span className="text-[9px] lc-ink-3">Recommended alternate route</span>
               </div>
               <div className="flex items-start gap-2">
                 {/* Green route indicator */}
@@ -690,21 +690,21 @@ export default function LiveMap({
                   </div>
                   {/* Metrics grid */}
                   <div className="grid grid-cols-3 gap-1.5 mt-2">
-                    <div className="bg-slate-900/60 rounded-lg px-1.5 py-1 text-center">
+                    <div className="lc-bg-sunk rounded-lg px-1.5 py-1 text-center">
                       <div className={`text-[11px] font-black ${activeRecMeta.costDelta > 0 ? "text-amber-400" : "text-emerald-400"}`}>
                         {activeRecMeta.costDelta === 0 ? "—" : activeRecMeta.costDelta > 0 ? `+$${(activeRecMeta.costDelta/1000).toFixed(1)}k` : `-$${(Math.abs(activeRecMeta.costDelta)/1000).toFixed(1)}k`}
                       </div>
-                      <div className="text-[8px] text-slate-600 mt-0.5">cost</div>
+                      <div className="text-[8px] lc-ink-3 mt-0.5">cost</div>
                     </div>
-                    <div className="bg-slate-900/60 rounded-lg px-1.5 py-1 text-center">
+                    <div className="lc-bg-sunk rounded-lg px-1.5 py-1 text-center">
                       <div className={`text-[11px] font-black ${activeRecMeta.timeDeltaHours > 0 ? "text-amber-400" : "text-emerald-400"}`}>
                         {activeRecMeta.timeDeltaHours === 0 ? "same" : activeRecMeta.timeDeltaHours > 0 ? `+${activeRecMeta.timeDeltaHours}h` : `${activeRecMeta.timeDeltaHours}h`}
                       </div>
-                      <div className="text-[8px] text-slate-600 mt-0.5">time</div>
+                      <div className="text-[8px] lc-ink-3 mt-0.5">time</div>
                     </div>
-                    <div className="bg-slate-900/60 rounded-lg px-1.5 py-1 text-center">
+                    <div className="lc-bg-sunk rounded-lg px-1.5 py-1 text-center">
                       <div className="text-[11px] font-black text-emerald-400">{activeRecMeta.riskScore}</div>
-                      <div className="text-[8px] text-slate-600 mt-0.5">risk</div>
+                      <div className="text-[8px] lc-ink-3 mt-0.5">risk</div>
                     </div>
                   </div>
                 </div>
@@ -712,8 +712,8 @@ export default function LiveMap({
             </div>
 
             {/* Footer hint */}
-            <div className="px-3 py-1.5 border-t border-slate-800/40 bg-slate-900/20">
-              <div className="text-[8px] text-slate-700">
+            <div className="px-3 py-1.5 border-t lc-hair lc-bg-sunk">
+              <div className="text-[8px] lc-ink-3">
                 <span className="text-red-500/60">━━</span> blocked &nbsp;
                 <span className="text-emerald-400/60">╌╌</span> AI reroute &nbsp;
                 {fleetDispatchLine && <><span className="text-cyan-400/60">╌╌</span> fleet dispatch &nbsp;</>}
@@ -725,31 +725,31 @@ export default function LiveMap({
       </div>
 
       {/* ── Legend (bottom-left) — compact when comparison is active ─────────── */}
-      <div className="absolute bottom-8 left-3 z-[1000] bg-[#060b14]/90 border border-slate-800 rounded-xl px-3 py-2.5 backdrop-blur-sm">
-        <div className="text-[8px] font-bold uppercase tracking-widest text-slate-700 mb-2">Map Legend</div>
+      <div className="absolute bottom-8 left-3 z-[1000] lc-bg-panel border lc-hair rounded-xl px-3 py-2.5 backdrop-blur-sm">
+        <div className="text-[8px] font-bold uppercase tracking-widest lc-ink-3 mb-2">Map Legend</div>
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-            <span className="text-[9px] text-slate-500">Shipment (normal)</span>
+            <span className="text-[9px] lc-ink-2">Shipment (normal)</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-            <span className="text-[9px] text-slate-500">Shipment (at risk)</span>
+            <span className="text-[9px] lc-ink-2">Shipment (at risk)</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-4 border-t border-dashed border-blue-500/40 flex-shrink-0" />
-            <span className="text-[9px] text-slate-500">Planned route</span>
+            <span className="text-[9px] lc-ink-2">Planned route</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-            <span className="text-[9px] text-slate-500">Idle fleet asset</span>
+            <span className="text-[9px] lc-ink-2">Idle fleet asset</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500/50 border border-red-500 flex-shrink-0" />
-            <span className="text-[9px] text-slate-500">Disruption zone</span>
+            <span className="text-[9px] lc-ink-2">Disruption zone</span>
           </div>
           {showComparison && (
-            <div className="pt-1 border-t border-slate-800 mt-1 space-y-1.5">
+            <div className="pt-1 border-t lc-hair mt-1 space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="w-4 border-t-2 border-red-500/70 border-dashed flex-shrink-0" />
                 <span className="text-[9px] text-red-400/80">Blocked route</span>

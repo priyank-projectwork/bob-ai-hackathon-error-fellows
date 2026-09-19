@@ -25,6 +25,7 @@ const { calculateShipmentRisk, getRiskBand } = require("./engines/riskEngine");
 const { evaluateTelemetry } = require("./engines/coldChainEngine");
 const { getRouteAlternatives } = require("./engines/routeOptimizer");
 const { rankFleetMatches } = require("./engines/fleetMatcher");
+const routingService = require("./services/routing");
 
 // AI Service
 const { classifyExcursion, generateReroutingStrategy, processChatQuery, AI_ENABLED } = require("./aiService");
@@ -78,7 +79,42 @@ eventBus.on("disruption.created", async (disruption) => {
         impactedShipments.push(shipment);
 
         // 3. Optimization & Matching
-        const alternatives = getRouteAlternatives(shipment.origin, shipment.destination, [disruption], shipment.priority);
+        // Real alternatives from the lane graph, ranked against the cargo's
+        // life clock. The old getRouteAlternatives matched on location names
+        // and fell through to a no-op for anything it did not recognise, which
+        // is why a recommendation could show the same route as both the
+        // blocked plan and the fix, with "no extra cost, 0h faster".
+        const profileForRoute = shipment.tempProfileId
+          ? await RuleProfile.findById(shipment.tempProfileId).lean()
+          : null;
+        const lifeClock = await coldChain.lifeClockFor(shipment.shipmentId, world.clock.now());
+        const { options } = routingService.optionsFor({
+          shipment,
+          profile: profileForRoute,
+          clock: lifeClock,
+          disruption,
+          carriers: require("./data/generate").CARRIERS,
+          nowMs: world.clock.now(),
+        });
+
+        // Keep the legacy shape for the UI, but fed by the real router.
+        const alternatives = options.length
+          ? options.map((o) => ({
+              route: o.route,
+              via: o.via,
+              modes: o.modes,
+              costDelta: o.costDelta,
+              timeDeltaHours: o.timeDeltaHours,
+              riskScore: o.riskScore,
+              rationale: o.rationale,
+              kind: o.kind,
+              feasible: o.feasible,
+              infeasibleBecause: o.infeasibleBecause,
+              lifeClockAtDeliveryH: o.lifeClockAtDeliveryH,
+              costBreakdown: o.costBreakdown,
+              co2Kg: o.co2Kg,
+            }))
+          : getRouteAlternatives(shipment.origin, shipment.destination, [disruption], shipment.priority);
         // fleetMatcher v2 returns {matches, rejected} and needs the pickup
         // point and the shipment's temperature range to filter honestly.
         const profileForMatch = shipment.tempProfileId
@@ -122,6 +158,10 @@ eventBus.on("disruption.created", async (disruption) => {
             : alternatives[0].rationale + (selectedFleet ? ` Matches idle asset ${selectedFleet.assetId} (score ${selectedFleet.matchScore}/100, ${selectedFleet.why}).` : ""),
           evidence: {
             alternateRoute: alternatives[0],
+            // Every option considered, including the ones rejected as
+            // infeasible with the shortfall — "we looked at this and here is
+            // why it lost" is the part a dispatcher actually needs.
+            allOptions: alternatives.slice(0, 5),
             // Normalised shape. fleetMatcher v2 returns { assetId, asset, ... };
             // the old one wrapped it as { fleet: {...} }. Write both so cards
             // rendered from either generation of the data keep working, and
@@ -934,6 +974,11 @@ app.get("/health", (req, res) => {
   const { version } = require("./package.json");
   res.status(200).json({
     status: "ok",
+    // A build marker so it is obvious whether the server is running the
+    // current code. Half a day was lost to a dashboard talking to a backend
+    // started before any of these routes existed.
+    build: "lifeclock-r2",
+    features: ["sim", "lifeclock", "mcp", "audit-chain", "graph-router"],
     uptimeSec: Math.floor((Date.now() - startTime) / 1000),
     store: getStoreMode(),
     ai: AI_ENABLED() ? "watsonx" : "fallback",
