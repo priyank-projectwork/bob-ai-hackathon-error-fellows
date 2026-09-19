@@ -1,29 +1,145 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* ── Design tokens ─────────────────────────────────────────────────────────
+   One palette, two themes. Everything in the app reads these, so light mode is
+   a variable swap rather than a second set of classes. Dark is the default
+   because a control tower runs at night; light exists because projectors and
+   compressed video destroy dark UIs.
+   --------------------------------------------------------------------------- */
 :root {
-  --background: #060b14;
-  --foreground: #e2e8f0;
+  --bg:            #0a0f1a;
+  --surface:       #111827;
+  --surface-raised:#1a2333;
+  --border:        #263041;
+  --border-strong: #37455c;
+
+  --text:          #e8edf5;
+  --text-muted:    #94a3b8;
+  --text-subtle:   #64748b;
+
+  --accent:        #38bdf8;
+  --accent-ink:    #082f49;
+
+  --ok:            #22c55e;
+  --warn:          #f59e0b;
+  --danger:        #ef4444;
+  --dead:          #991b1b;
+
+  --ok-bg:         rgba(34,197,94,0.12);
+  --warn-bg:       rgba(245,158,11,0.13);
+  --danger-bg:     rgba(239,68,68,0.13);
+
+  --map-filter:    invert(1) hue-rotate(180deg) brightness(0.92) contrast(1.05);
+  --shadow:        0 1px 2px rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.6);
+}
+
+:root[data-theme="light"] {
+  --bg:            #f6f8fb;
+  --surface:       #ffffff;
+  --surface-raised:#ffffff;
+  --border:        #dde3ec;
+  --border-strong: #c3ccdb;
+
+  --text:          #0f172a;
+  --text-muted:    #556377;
+  --text-subtle:   #7b8798;
+
+  --accent:        #0369a1;
+  --accent-ink:    #e0f2fe;
+
+  --ok:            #15803d;
+  --warn:          #b45309;
+  --danger:        #b91c1c;
+  --dead:          #7f1d1d;
+
+  --ok-bg:         rgba(21,128,61,0.10);
+  --warn-bg:       rgba(180,83,9,0.12);
+  --danger-bg:     rgba(185,28,28,0.10);
+
+  /* Light mode shows the map as drawn — no inversion. */
+  --map-filter:    none;
+  --shadow:        0 1px 2px rgba(15,23,42,0.06), 0 8px 24px -14px rgba(15,23,42,0.18);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f6f8fb; --surface: #ffffff; --surface-raised: #ffffff;
+    --border: #dde3ec; --border-strong: #c3ccdb;
+    --text: #0f172a; --text-muted: #556377; --text-subtle: #7b8798;
+    --accent: #0369a1; --accent-ink: #e0f2fe;
+    --ok: #15803d; --warn: #b45309; --danger: #b91c1c; --dead: #7f1d1d;
+    --ok-bg: rgba(21,128,61,0.10); --warn-bg: rgba(180,83,9,0.12); --danger-bg: rgba(185,28,28,0.10);
+    --map-filter: none;
+    --shadow: 0 1px 2px rgba(15,23,42,0.06), 0 8px 24px -14px rgba(15,23,42,0.18);
+  }
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: #060b14;
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-geist-sans, system-ui, sans-serif);
+  /* Nothing below 13px: this has to survive a projector and a compressed video. */
+  font-size: 15px;
+  line-height: 1.55;
+  transition: background 200ms ease, color 200ms ease;
 }
 
+/* ── Reusable surfaces ───────────────────────────────────────────────────── */
+.lc-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.lc-muted  { color: var(--text-muted); }
+.lc-subtle { color: var(--text-subtle); }
+
+.lc-btn {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.875rem;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.lc-btn:hover { border-color: var(--border-strong); }
+.lc-btn[aria-pressed="true"],
+.lc-btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.lc-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.lc-chip {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  border-radius: 999px; padding: 0.15rem 0.6rem;
+  font-size: 0.78rem; font-weight: 500; white-space: nowrap;
+}
+.lc-chip-ok     { background: var(--ok-bg);     color: var(--ok); }
+.lc-chip-warn   { background: var(--warn-bg);   color: var(--warn); }
+.lc-chip-danger { background: var(--danger-bg); color: var(--danger); }
+.lc-chip-neutral{ background: var(--surface-raised); color: var(--text-muted); border: 1px solid var(--border); }
+
+/* The map tiles follow the theme rather than being inverted regardless. */
+.lc-map .leaflet-tile-pane { filter: var(--map-filter); }
+.lc-map .leaflet-container { background: var(--surface); }
+
 /* Thin scrollbars sitewide */
-* { scrollbar-width: thin; scrollbar-color: #1e293b transparent; }
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
 
 /* Smooth number transitions for KPI counters */
 @keyframes kpiPop {

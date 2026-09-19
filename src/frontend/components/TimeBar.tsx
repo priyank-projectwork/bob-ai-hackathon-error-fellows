@@ -42,10 +42,10 @@ export function TimeBar({ onTick }: { onTick?: (s: SimStatus) => void }) {
 
   if (error) {
     return (
-      <div className="flex items-center gap-3 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm">
-        <span className="font-medium text-red-400">Backend unreachable</span>
+      <div className="lc-card flex items-center gap-3 px-4 py-2.5 text-sm" style={{ borderColor: "var(--danger)", background: "var(--danger-bg)" }}>
+        <span className="font-semibold" style={{ color: "var(--danger)" }}>Backend unreachable</span>
         <span className="opacity-70">{error}</span>
-        <button onClick={refresh} className="ml-auto rounded bg-red-500/20 px-3 py-1 hover:bg-red-500/30">
+        <button onClick={refresh} className="lc-btn ml-auto">
           Retry
         </button>
       </div>
@@ -53,10 +53,10 @@ export function TimeBar({ onTick }: { onTick?: (s: SimStatus) => void }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-700/50 bg-slate-900/40 px-4 py-2">
+    <div className="lc-card flex flex-wrap items-center gap-3 px-4 py-2.5">
       <button
         onClick={() => act(status?.running ? api.sim.pause : api.sim.play)}
-        className="rounded bg-slate-700 px-4 py-1.5 text-sm font-medium hover:bg-slate-600"
+        className="lc-btn is-active min-w-[5rem] font-semibold"
         aria-label={status?.running ? "Pause the simulation" : "Play the simulation"}
       >
         {status?.running ? "Pause" : "Play"}
@@ -68,23 +68,21 @@ export function TimeBar({ onTick }: { onTick?: (s: SimStatus) => void }) {
             key={s}
             onClick={() => act(() => api.sim.speed(s))}
             aria-pressed={status?.speed === s}
-            className={`rounded px-2.5 py-1 text-sm ${
-              status?.speed === s ? "bg-sky-600 text-white" : "bg-slate-800 hover:bg-slate-700"
-            }`}
+            className="lc-btn px-2.5 py-1"
           >
             {s}&times;
           </button>
         ))}
       </div>
 
-      <button onClick={() => act(() => api.sim.skip(6))} className="rounded bg-slate-800 px-3 py-1 text-sm hover:bg-slate-700">
+      <button onClick={() => act(() => api.sim.skip(6))} className="lc-btn">
         +6 h
       </button>
 
       <div className="ml-auto flex items-center gap-3 font-mono text-sm tabular-nums">
-        <span className={`h-2 w-2 rounded-full ${status?.running ? "bg-emerald-400" : "bg-slate-500"}`} aria-hidden />
+        <span className="h-2 w-2 rounded-full" style={{ background: status?.running ? "var(--ok)" : "var(--text-subtle)" }} aria-hidden />
         <span>{status ? new Date(status.simNowMs).toISOString().replace("T", " ").slice(0, 16) : "—"}</span>
-        <span className="opacity-60">+{status ? status.elapsedSimHours.toFixed(1) : "0"} h</span>
+        <span className="lc-subtle">+{status ? status.elapsedSimHours.toFixed(1) : "0"} h</span>
       </div>
     </div>
   );

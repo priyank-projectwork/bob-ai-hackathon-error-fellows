@@ -41,12 +41,12 @@ export function AuditPanel() {
         <button
           onClick={verify}
           disabled={busy}
-          className="rounded bg-slate-700 px-3 py-1 text-sm hover:bg-slate-600 disabled:opacity-50"
+          className="lc-btn disabled:opacity-50"
         >
           {busy ? "Verifying…" : "Verify chain"}
         </button>
         {verdict && (
-          <span className={`rounded px-2 py-1 text-sm ${verdict.valid ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300"}`}>
+          <span className={`lc-chip ${verdict.valid ? "lc-chip-ok" : "lc-chip-danger"}`}>
             {verdict.valid
               ? `Intact — ${verdict.length} records`
               : `Broken at #${verdict.brokenAt}: ${verdict.reason}`}
@@ -54,27 +54,28 @@ export function AuditPanel() {
         )}
       </header>
 
-      {events.length === 0 && <p className="text-sm opacity-60">No recorded actions yet.</p>}
+      {events.length === 0 && <p className="text-sm lc-subtle">No recorded actions yet.</p>}
 
       <ol className="flex flex-col gap-1">
         {events.map((e) => (
           <li
             key={e.hash ?? `legacy-${e.seq ?? Math.random()}`}
-            className={`flex flex-wrap items-baseline gap-3 rounded border px-3 py-2 text-sm ${
+            className="flex flex-wrap items-baseline gap-3 rounded-lg border px-3 py-2 text-sm"
+            style={
               e.outcome === "denied"
-                ? "border-amber-500/40 bg-amber-500/10"
-                : "border-slate-700/40 bg-slate-900/30"
-            }`}
+                ? { borderColor: "var(--warn)", background: "var(--warn-bg)" }
+                : { borderColor: "var(--border)", background: "var(--surface)" }
+            }
           >
-            <span className="font-mono opacity-50">#{e.seq}</span>
+            <span className="font-mono lc-subtle">#{e.seq}</span>
             <span className="font-medium">{e.action}</span>
             {e.outcome === "denied" && (
-              <span className="rounded bg-amber-500/25 px-2 py-0.5 text-xs font-medium text-amber-200">
+              <span className="lc-chip lc-chip-warn">
                 refused
               </span>
             )}
-            <span className="opacity-70">{e.entityId}</span>
-            <span className="ml-auto flex items-center gap-2 font-mono text-xs opacity-60">
+            <span className="lc-muted">{e.entityId}</span>
+            <span className="ml-auto flex items-center gap-2 font-mono text-xs lc-subtle">
               {/* Rows written before the hash chain existed carry actorId
                   instead of actor.sub and have no hash at all. Render them
                   rather than crashing the panel. */}
@@ -82,7 +83,7 @@ export function AuditPanel() {
               {e.hash ? (
                 <span title={e.hash}>{e.hash.slice(0, 8)}</span>
               ) : (
-                <span className="opacity-50">pre-chain</span>
+                <span className="lc-subtle">pre-chain</span>
               )}
             </span>
           </li>

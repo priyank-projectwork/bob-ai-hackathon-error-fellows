@@ -99,14 +99,14 @@ export default function MovingMap({
 
   if (error) {
     return (
-      <div className="flex h-[520px] items-center justify-center rounded-lg border border-red-500/40 bg-red-500/5">
+      <div className="lc-card flex h-[520px] items-center justify-center" style={{ borderColor: "var(--danger)", background: "var(--danger-bg)" }}>
         <p className="text-sm">Map unavailable — {error}</p>
       </div>
     );
   }
 
   return (
-    <div className="relative h-[520px] overflow-hidden rounded-lg border border-slate-700/50">
+    <div className="lc-card lc-map relative h-[520px] overflow-hidden">
       <MapContainer center={[20, 40]} zoom={3} className="h-full w-full" worldCopyJump>
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -206,7 +206,7 @@ export default function MovingMap({
         <FlyTo position={selectedShipment?.position ?? null} />
       </MapContainer>
 
-      <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1 rounded bg-slate-900/85 px-3 py-2 text-xs">
+      <div className="lc-card pointer-events-none absolute bottom-3 left-3 z-[500] flex flex-col gap-1 px-3 py-2 text-xs">
         <span className="font-medium">Life clock</span>
         {(["green", "amber", "red", "black"] as ClockState[]).map((s) => (
           <span key={s} className="flex items-center gap-2">
@@ -216,7 +216,7 @@ export default function MovingMap({
         ))}
       </div>
 
-      <div className="pointer-events-none absolute right-3 top-3 rounded bg-slate-900/85 px-3 py-1.5 text-xs">
+      <div className="lc-card pointer-events-none absolute right-3 top-3 z-[500] px-3 py-1.5 text-xs font-medium">
         {shipments.length} shipments · {shipments.filter((s) => s.moving).length} moving
       </div>
     </div>

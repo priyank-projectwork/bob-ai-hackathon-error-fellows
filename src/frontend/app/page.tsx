@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { TimeBar } from "@/components/TimeBar";
 import { TriageQueue } from "@/components/TriageQueue";
 import { AuditPanel } from "@/components/AuditPanel";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { api, type Health, type WorldSnapshot } from "@/lib/api";
 
 // Leaflet touches window on import, so it can only load in the browser.
@@ -46,27 +47,30 @@ export default function ControlTowerPage() {
 
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-6 p-6">
-      <header className="flex flex-wrap items-baseline gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          LIFECLOCK
-          <span className="ml-3 text-base font-normal opacity-60">cold-chain control tower</span>
-        </h1>
+      <header className="flex flex-wrap items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">LIFECLOCK</h1>
+          <p className="text-sm lc-muted">
+            Every cold shipment has two deadlines. This is the one that bites first.
+          </p>
+        </div>
         <div className="ml-auto flex items-center gap-4 text-sm">
-          <a href="/classic" className="underline opacity-60 hover:opacity-100">
-            classic map view
+          <ThemeToggle />
+          <a href="/classic" className="lc-muted underline hover:text-[var(--text)]">
+            classic view
           </a>
           {health ? (
             <>
-              <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-                {moving} shipments moving
+              <span className="lc-chip lc-chip-ok">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--ok)" }} aria-hidden />
+                {moving} moving
               </span>
-              <span className="opacity-60">
-                store: {health.store} · ai: {health.ai}
+              <span className="lc-subtle">
+                {health.store} · {health.ai}
               </span>
             </>
           ) : (
-            <span className="text-red-400">backend unreachable</span>
+            <span className="lc-chip lc-chip-danger">backend unreachable</span>
           )}
         </div>
       </header>
@@ -74,7 +78,7 @@ export default function ControlTowerPage() {
       <TimeBar />
 
       {health?.ai === "fallback" && (
-        <p className="rounded border border-slate-600/40 bg-slate-800/30 px-4 py-2 text-sm opacity-80">
+        <p className="lc-card px-4 py-2.5 text-sm lc-muted">
           Running without watsonx credentials. Every number on this screen is produced by the
           deterministic engines; only the written explanations fall back to templates.
         </p>
