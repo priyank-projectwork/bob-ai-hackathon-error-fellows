@@ -79,12 +79,26 @@ eventBus.on("disruption.created", async (disruption) => {
 
         // 3. Optimization & Matching
         const alternatives = getRouteAlternatives(shipment.origin, shipment.destination, [disruption], shipment.priority);
-        const matches = rankFleetMatches(shipment, availableFleets);
+        // fleetMatcher v2 returns {matches, rejected} and needs the pickup
+        // point and the shipment's temperature range to filter honestly.
+        const profileForMatch = shipment.tempProfileId
+          ? await RuleProfile.findById(shipment.tempProfileId).lean()
+          : null;
+        const { matches, rejected: fleetRejected } = rankFleetMatches({
+          shipmentId: shipment.shipmentId,
+          cargoType: shipment.cargoType,
+          transportMode: shipment.transportMode || "Road",
+          minTempC: profileForMatch?.minTempC,
+          maxTempC: profileForMatch?.maxTempC,
+          pickupPoint: shipment.currentLocation
+            ? [shipment.currentLocation.lng, shipment.currentLocation.lat]
+            : null,
+        }, availableFleets, { nowMs: world.clock.now() });
 
         let selectedFleet = null;
         if (matches.length > 0) {
           selectedFleet = matches[0];
-          const index = availableFleets.findIndex(f => f.assetId === selectedFleet.fleet.assetId);
+          const index = availableFleets.findIndex(f => f.assetId === selectedFleet.assetId);
           if (index !== -1) availableFleets.splice(index, 1);
         }
 
@@ -104,8 +118,8 @@ eventBus.on("disruption.created", async (disruption) => {
           score: risk.score,
           confidence: 85,
           rationale: aiStrategy.recommendedAction
-            ? `${aiStrategy.recommendedAction} | Route: ${aiStrategy.alternateRoute || alternatives[0].rationale}` + (selectedFleet ? ` | Fleet: ${selectedFleet.fleet.assetId}` : "")
-            : alternatives[0].rationale + (selectedFleet ? ` Matches with idle asset ${selectedFleet.fleet.assetId}.` : ""),
+            ? `${aiStrategy.recommendedAction} | Route: ${aiStrategy.alternateRoute || alternatives[0].rationale}` + (selectedFleet ? ` | Fleet: ${selectedFleet.assetId} (match ${selectedFleet.matchScore}/100)` : "")
+            : alternatives[0].rationale + (selectedFleet ? ` Matches idle asset ${selectedFleet.assetId} (score ${selectedFleet.matchScore}/100, ${selectedFleet.why}).` : ""),
           evidence: {
             alternateRoute: alternatives[0],
             fleetMatch: selectedFleet || null,
