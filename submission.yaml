@@ -53,9 +53,9 @@ submission:
   tech_stack:
     languages: ["JavaScript", "TypeScript"]
     frameworks: ["Next.js 16", "React 19", "Express 5", "Socket.IO", "Mongoose", "Tailwind CSS 4", "Recharts", "React Leaflet"]
-    ibm_technologies: ["watsonx.ai (meta-llama/llama-4-maverick-17b-128e-instruct-fp8)", "IBM watsonx AI Node.js SDK (@ibm-cloud/watsonx-ai)", "IBM Bob"]
+    ibm_technologies: ["IBM Bob (Control Tower custom mode, 12 MCP tools over Streamable HTTP, PostToolUse audit hook)", "watsonx.ai (explanations only; Granite-ready via MODEL_ID)", "IBM watsonx AI Node.js SDK (@ibm-cloud/watsonx-ai)"]
     databases: ["MongoDB 7 (via Mongoose ODM)"]
-    other: ["Node.js 20", "Socket.IO WebSockets", "Leaflet geospatial maps", "MCP (Model Context Protocol)"]
+    other: ["Node.js 18/20/22", "MCP (Model Context Protocol) via @modelcontextprotocol/sdk", "Socket.IO WebSockets", "Leaflet geospatial maps", "node:test (165 tests)", "mongodb-memory-server (runs with no database)"]
 
   what_we_are_most_proud_of: >
     The architecture principle we are most proud of is the clean separation between
@@ -68,16 +68,19 @@ submission:
     exactly the production-grade pattern the architecture spec calls "the differentiator."
 
   known_limitations: >
-    Authentication is mocked (single hardcoded Operations Manager role). MongoDB runs
-    locally — no cloud deployment for this submission. The route graph is a demo
-    network (5 US hubs); real deployments would integrate a live routing engine.
-    The IoT sensor stream is simulated at 5-second intervals; production would use
-    an MQTT gateway. Demo video shows local execution only — live demo URL is NOT DEPLOYED.
+    The audit log is tamper-evident, not a signature: it makes alteration
+    detectable, it does not prove authorship. The product is designed toward
+    21 CFR Part 11 principles and is not validated or qualified. Duty rates and
+    customs dwell benchmarks are illustrative - the direction is real, the
+    figures are ours. Approving a recommendation records a signed, audited
+    decision but does not yet apply the route change to the world. Delay does
+    not propagate between legs, so missed-connection cascade is not
+    implemented. There is no live weather or news ingestion; a pasted headline
+    is structured on request. Authentication is a single named operator rather
+    than an identity provider - custody is recorded as data, multiple
+    organisations are not built. Not deployed; the demo runs locally.
+    docs/known-limitations.md is more specific.
 
-# =============================================================================
-# ARTIFACT LOCATIONS
-# =============================================================================
-artifacts:
   source_code: "src/"
   setup_guide: "docs/setup-guide.md"
   architecture_doc: "docs/architecture.md"
