@@ -18,14 +18,34 @@ const SAFE_MAX = 8;
 const WARN_MIN = 7;
 
 // One colour per shipment — consistent across renders
-const SHIP_COLORS: Record<string, string> = {
-  "SHIP-MVP-101": "#818cf8", // indigo
-  "SHIP-MVP-102": "#34d399", // emerald
-  "SHIP-MVP-103": "#60a5fa", // blue
-  "SHIP-MVP-104": "#f472b6", // pink
-  "SHIP-MVP-105": "#fbbf24", // amber
-  "SHIP-MVP-106": "#fb923c", // orange — ocean vessel
-};
+/**
+ * A stable colour per shipment, derived from its id.
+ *
+ * This used to be a fixed map keyed on SHIP-MVP-101..106. Those ids no longer
+ * exist, so every series fell through to the same grey and the chart became
+ * unreadable. Hashing the id means any shipment gets a distinct, consistent
+ * colour without anyone maintaining a list.
+ */
+const SERIES_PALETTE = [
+  "#818cf8", // indigo
+  "#34d399", // emerald
+  "#60a5fa", // blue
+  "#f472b6", // pink
+  "#fbbf24", // amber
+  "#fb923c", // orange
+  "#2dd4bf", // teal
+  "#c084fc", // purple
+  "#f87171", // red
+  "#a3e635", // lime
+];
+
+function colourFor(shipmentId: string): string {
+  let h = 0;
+  for (let i = 0; i < shipmentId.length; i++) {
+    h = (h * 31 + shipmentId.charCodeAt(i)) >>> 0;
+  }
+  return SERIES_PALETTE[h % SERIES_PALETTE.length];
+}
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -142,7 +162,7 @@ export default function HistoricalAnalytics() {
                     type="monotone"
                     dataKey={key}
                     name={key}
-                    stroke={SHIP_COLORS[key] ?? "#94a3b8"}
+                    stroke={colourFor(key)}
                     strokeWidth={1.5}
                     dot={false}
                     activeDot={{ r: 3, strokeWidth: 1 }}

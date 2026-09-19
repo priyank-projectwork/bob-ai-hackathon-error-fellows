@@ -554,6 +554,22 @@ export default function Dashboard() {
     const clockPoll = setInterval(() => {
       api.lifeClocks().then(r => setClocks(r.clocks)).catch(() => {});
     }, 3000);
+
+    // Re-read positions so the map actually moves.
+    //
+    // fetchAll() ran once on mount and again after an approval, so however
+    // fast the simulated clock was running the pins never left where they
+    // were first drawn. The backend was updating; nothing was asking.
+    const worldPoll = setInterval(() => {
+      fetch(`${API}/api/locations`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.shipments) setShipments(d.shipments);
+          if (d.fleets) setFleets(d.fleets);
+          if (d.disruptions) setDisruptions(d.disruptions);
+        })
+        .catch(() => {});
+    }, 2000);
     // Show tour on first visit; localStorage key lets user dismiss permanently
     if (typeof window !== "undefined" && !localStorage.getItem("cc_tour_done")) {
       setTimeout(() => setShowTour(true), 800); // slight delay so the page renders first
@@ -623,7 +639,7 @@ export default function Dashboard() {
       api.lifeClocks().then(r => setClocks(r.clocks)).catch(() => {});
     });
 
-    return () => { clearInterval(clockPoll); socket.disconnect(); };
+    return () => { clearInterval(clockPoll); clearInterval(worldPoll); socket.disconnect(); };
   }, []); // eslint-disable-line
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -704,24 +720,37 @@ export default function Dashboard() {
     const ship     = shipments.find(f => f.shipmentId === rec.entityId);
     const originName = ship?.origin ?? "";
     const destName   = ship?.destination ?? "";
-    if (!alt?.via?.length) return null;
+    if (!ship) return null;
 
-    // Start from the named ORIGIN city (not current location which may be near destination)
+    // Prefer the shipment's REAL geometry over a city-name lookup.
+    //
+    // This used to resolve alt.via through a hardcoded 22-city table and bail
+    // out entirely when nothing matched — which is every lane in the current
+    // network, whose nodes are named things like "Nhava Sheva (JNPT)". So
+    // "See on Map" silently did nothing. The backend now sends routeCoords
+    // and remainingPath on every shipment; use them.
+    const toLatLng = (c: [number, number]): [number, number] => [c[1], c[0]];
+    const routeGeo: [number, number][] = Array.isArray(ship.routeCoords)
+      ? (ship.routeCoords as [number, number][]).map(toLatLng)
+      : [];
+
+    // Named waypoints still win when we can resolve them — they read better.
     const originPt: [number, number] | null = originName ? CITY_COORDS[originName] ?? null : null;
-    const viaPts = (alt.via as string[]).map(v => CITY_COORDS[v]).filter(Boolean) as [number, number][];
+    const viaPts = ((alt?.via as string[]) ?? []).map(v => CITY_COORDS[v]).filter(Boolean) as [number, number][];
     const destPt = destName ? CITY_COORDS[destName] ?? null : null;
 
-    const fullPath: [number, number][] = [
+    const namedPath: [number, number][] = [
       ...(originPt ? [originPt] : []),
       ...viaPts,
       ...(destPt ? [destPt] : []),
     ];
-    // Labels: use the actual city name for origin (not shipment ID)
-    const labels = [
-      originName || rec.entityId,
-      ...(alt.via as string[]),
-      ...(destName ? [destName] : []),
-    ];
+
+    const fullPath: [number, number][] = namedPath.length >= 2 ? namedPath : routeGeo;
+    if (fullPath.length < 2) return null;
+
+    const labels = namedPath.length >= 2
+      ? [originName || rec.entityId, ...((alt?.via as string[]) ?? []), ...(destName ? [destName] : [])]
+      : [originName || rec.entityId, ...(destName ? [destName] : [])];
 
     const disruption = disruptions[0];
     const disruptionLabel = disruption?.title ?? disruption?.type ?? "Active Disruption";
@@ -732,10 +761,10 @@ export default function Dashboard() {
       origin:        originName,
       destination:   destName,
       disruption:    disruptionLabel,
-      costDelta:     alt.costDelta,
-      timeDeltaHours: alt.timeDeltaHours,
-      riskScore:     alt.riskScore,
-      routeLabel:    alt.route,
+      costDelta:     alt?.costDelta ?? 0,
+      timeDeltaHours: alt?.timeDeltaHours ?? 0,
+      riskScore:     alt?.riskScore ?? ship?.riskScore ?? 0,
+      routeLabel:    alt?.route ?? `${originName} → ${destName}`,
     };
 
     // Fleet dispatch line: idle truck → shipment's current position
@@ -752,7 +781,14 @@ export default function Dashboard() {
       }
     }
 
-    return { fullPath, labels, blockedPath: buildBlockedPath(ship), meta, fleetLine };
+    // The blocked path is what is still AHEAD of the shipment — the part a
+    // disruption can still affect. remainingPath comes from the motion engine.
+    const remaining: [number, number][] = Array.isArray(ship.remainingPath)
+      ? (ship.remainingPath as [number, number][]).map(toLatLng)
+      : [];
+    const blockedPath = remaining.length >= 2 ? remaining : buildBlockedPath(ship);
+
+    return { fullPath, labels, blockedPath, meta, fleetLine };
   };
 
   const approveRec = async (rec: RecommendationData) => {
