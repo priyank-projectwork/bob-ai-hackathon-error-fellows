@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
+import { API } from "@/lib/api";
 
 interface Message {
   id: string;
@@ -40,7 +41,7 @@ export default function ChatCopilot() {
     setIsTyping(true);
 
     try {
-      const res = await fetch("http://127.0.0.1:4000/api/v1/chat", {
+      const res = await fetch(`${API}/api/v1/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMsg.text }),

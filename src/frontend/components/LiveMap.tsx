@@ -95,12 +95,18 @@ const truckIcon      = makeIcon("#22c55e",  TRUCK_SVG);        // idle fleet —
 const alertIcon      = makeIcon("#ef4444",  ALERT_SVG, true);
 
 // Pick icon by route leg mode and risk score
-function getShipmentIcon(ship: any): L.DivIcon {
-  const mode = ship.routeLegs?.[0]?.mode ?? ship.mode ?? "Road";
-  const isRisk = (ship.riskScore ?? 0) >= 50;
-  if (mode === "Sea" || mode === "Ocean") return isRisk ? vesselRiskIcon : vesselIcon;
-  if (mode === "Air")   return planeIcon;
-  return isRisk ? roadRiskIcon : roadIcon;
+/**
+ * Pin colour answers "how long has this cargo got", not a generic risk score.
+ * Falls back to riskScore when no life clock is available.
+ */
+function getShipmentIcon(ship: any, clock?: { state: string }): L.DivIcon {
+  const mode = ship.transportMode ?? ship.routeLegs?.[0]?.mode ?? ship.mode ?? "Road";
+  const urgent = clock
+    ? clock.state === "red" || clock.state === "black"
+    : (ship.riskScore ?? 0) >= 50;
+  if (mode === "Sea" || mode === "Ocean") return urgent ? vesselRiskIcon : vesselIcon;
+  if (mode === "Air") return planeIcon;
+  return urgent ? roadRiskIcon : roadIcon;
 }
 
 // ─── Injected CSS ─────────────────────────────────────────────────────────────
@@ -216,10 +222,18 @@ function SonarSpotlight({ spotlight }: {
 
 // ─── Popup helpers ────────────────────────────────────────────────────────────
 
-function ShipmentPopup({ s }: { s: any }) {
+function ShipmentPopup({ s, clock }: { s: any; clock?: LifeClockLite }) {
+  // The life clock leads. Risk score is kept underneath as supporting detail.
+  const CLOCK_COL: Record<string, string> = {
+    green: "#34d399", amber: "#fbbf24", red: "#f87171", black: "#b91c1c",
+  };
   const rs = s.riskScore ?? 0;
-  const col = rs >= 75 ? "#f87171" : rs >= 50 ? "#fb923c" : rs >= 25 ? "#fbbf24" : "#34d399";
-  const lbl = rs >= 75 ? "CRITICAL" : rs >= 50 ? "HIGH" : rs >= 25 ? "WATCH" : "NORMAL";
+  const col = clock
+    ? CLOCK_COL[clock.state]
+    : rs >= 75 ? "#f87171" : rs >= 50 ? "#fb923c" : rs >= 25 ? "#fbbf24" : "#34d399";
+  const lbl = clock
+    ? `${clock.lifeClockH.toFixed(1)}H LEFT`
+    : rs >= 75 ? "CRITICAL" : rs >= 50 ? "HIGH" : rs >= 25 ? "WATCH" : "NORMAL";
   return (
     <div style={{ padding:"13px 15px", minWidth:200, fontFamily:"system-ui,sans-serif" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -227,6 +241,29 @@ function ShipmentPopup({ s }: { s: any }) {
         <span style={{ background:`${col}18`, color:col, border:`1px solid ${col}55`,
           borderRadius:5, fontSize:9, fontWeight:800, padding:"2px 7px", letterSpacing:"0.1em" }}>{lbl}</span>
       </div>
+      {clock && (
+        <div style={{ marginBottom:9, padding:"7px 9px", borderRadius:6,
+          background:`${col}12`, border:`1px solid ${col}40` }}>
+          <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#94a3b8" }}>
+            <span>Until late</span>
+            <span style={{ fontWeight:700, color: clock.bindingConstraint === "schedule" ? col : "#cbd5e1" }}>
+              {clock.scheduleMarginH.toFixed(1)} h{clock.bindingConstraint === "schedule" ? "  ◀ binding" : ""}
+            </span>
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#94a3b8", marginTop:3 }}>
+            <span>Until spoiled</span>
+            <span style={{ fontWeight:700, color: clock.bindingConstraint === "stability" ? col : "#cbd5e1" }}>
+              {clock.stabilityMarginH.toFixed(1)} h{clock.bindingConstraint === "stability" ? "  ◀ binding" : ""}
+            </span>
+          </div>
+          {clock.usdAtRisk > 0 && (
+            <div style={{ marginTop:5, paddingTop:5, borderTop:"1px solid #1e293b", fontSize:10, color:"#94a3b8" }}>
+              ${Math.round(clock.usdAtRisk).toLocaleString()} at risk
+              {clock.dosesAtRisk > 0 && ` · ${clock.dosesAtRisk.toLocaleString()} doses`}
+            </div>
+          )}
+        </div>
+      )}
       <div style={{ display:"grid", gridTemplateColumns:"auto 1fr", rowGap:5, columnGap:14, fontSize:11 }}>
         <span style={{ color:"#475569" }}>Risk</span>
         <span style={{ color:col, fontWeight:800 }}>{rs}/100</span>
@@ -299,7 +336,20 @@ interface RecMeta {
   routeLabel: string;
 }
 
+interface LifeClockLite {
+  lifeClockH: number;
+  scheduleMarginH: number;
+  stabilityMarginH: number;
+  state: "green" | "amber" | "red" | "black";
+  bindingConstraint: string;
+  usdAtRisk: number;
+  dosesAtRisk: number;
+  severity: string;
+}
+
 interface LiveMapProps {
+  /** Life clocks keyed by shipmentId — colours the pins by remaining cargo life. */
+  lifeClocks?: Record<string, LifeClockLite>;
   disruptions: any[];
   shipments: any[];
   fleets: any[];
@@ -318,6 +368,7 @@ interface LiveMapProps {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function LiveMap({
+  lifeClocks,
   disruptions, shipments, fleets,
   rerouteShipmentId, reroutePath, rerouteLabels,
   blockedPath, activeRecMeta, fleetDispatchLine,
@@ -480,11 +531,11 @@ export default function LiveMap({
           if (showComparison && !focused) return null;
           return (
             <Marker key={`ship-${i}`} position={pos}
-              icon={getShipmentIcon(ship)}
+              icon={getShipmentIcon(ship, lifeClocks?.[ship.shipmentId])}
               opacity={focused ? FULL_OPACITY : DIM_OPACITY}
               zIndexOffset={focused ? 200 : 10}
             >
-              <Popup className="cc-popup" maxWidth={230}><ShipmentPopup s={ship} /></Popup>
+              <Popup className="cc-popup" maxWidth={230}><ShipmentPopup s={ship} clock={lifeClocks?.[ship.shipmentId]} /></Popup>
             </Marker>
           );
         })}

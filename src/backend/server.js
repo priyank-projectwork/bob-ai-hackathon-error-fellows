@@ -299,11 +299,47 @@ const startSimulation = async () => {
 
 app.get("/api/locations", requireDb, async (req, res) => {
   try {
-    const shipments = await Shipment.find({ status: "In Transit" }).populate("routeLegs");
-    const fleets = await FleetAsset.find({ status: "Idle" });
-    const disruptions = await Disruption.find({ status: "Active" });
-    res.json({ shipments, fleets, disruptions });
+    const shipments = await Shipment.find({ status: "In Transit" }).populate("routeLegs").lean();
+    const fleets = await FleetAsset.find({ status: "Idle" }).lean();
+    const disruptions = await Disruption.find({ status: "Active" }).lean();
+
+    // Overlay the LIVE position from the motion engine.
+    //
+    // This used to return the seeded currentLocation, which is routeCoords[0]
+    // — identical for every shipment sharing a lane. So the map stacked a
+    // dozen vehicles on one pixel and nothing ever moved, however fast the
+    // simulation was running. The world already knows where everything is;
+    // this endpoint just never asked.
+    const motion = require("./engines/motion");
+    const simNow = world.clock.now();
+
+    for (const s of shipments) {
+      if (!Array.isArray(s.routeCoords) || s.routeCoords.length < 2) continue;
+      const st = world.state(s.shipmentId);
+      const pos = motion.advance({
+        coords: s.routeCoords,
+        departedAtMs: s.departedAt ? new Date(s.departedAt).getTime() : simNow,
+        nowMs: simNow,
+        speedKmh: s.speedKmh || 80,
+        dwellHours: s.dwellHours ?? 0,
+        halted: st.halted,
+        haltedAtKm: st.haltedAtKm,
+      });
+      s.currentLocation = { lat: pos.position[1], lng: pos.position[0] };
+      s.bearing = pos.bearing;
+      s.fractionDone = pos.fractionDone;
+      s.progressKm = Math.round(pos.progressKm);
+      s.totalKm = Math.round(pos.totalKm);
+      s.remainingPath = motion.remainingPath({ coords: s.routeCoords, progressKm: pos.progressKm });
+      s.halted = st.halted;
+      s.liveTempC = st.tempC;
+      s.unitMode = st.unitMode;
+      if (pos.etaMs) s.eta = new Date(pos.etaMs);
+    }
+
+    res.json({ shipments, fleets, disruptions, simNowMs: simNow });
   } catch (error) {
+    console.error("[locations]", error.message);
     res.status(500).json({ error: "Failed to fetch locations" });
   }
 });
@@ -644,6 +680,11 @@ async function handleReading(reading) {
     io.emit("temperatureUpdate", {
       shipmentId: reading.shipmentId,
       temperatureCelsius: reading.temperatureCelsius,
+      // `timestamp` is what the dashboard keys its sensor rows on. Emitting
+      // only `recordedAt` made every key `<id>-undefined`, so React collapsed
+      // all of a shipment's readings into one row and warned about duplicates.
+      timestamp: new Date(reading.recordedAt ?? world.clock.now()).toISOString(),
+      _id: `${reading.shipmentId}-${reading.recordedAt ?? world.clock.now()}`,
       ambientC: reading.ambientC ?? null,
       unitMode: reading.unitMode ?? null,
       doorOpen: reading.doorOpen ?? false,

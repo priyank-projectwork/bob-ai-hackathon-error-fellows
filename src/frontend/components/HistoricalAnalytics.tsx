@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { API } from "@/lib/api";
 import {
   LineChart,
   Line,
@@ -54,7 +55,7 @@ export default function HistoricalAnalytics() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("http://127.0.0.1:4000/api/analytics/temperature")
+    fetch(`${API}/api/analytics/temperature`)
       .then((res) => res.json())
       .then((json) => {
         if (json.data) setData(json.data);
