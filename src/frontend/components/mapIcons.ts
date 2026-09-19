@@ -2,19 +2,16 @@ import L from "leaflet";
 import type { ClockState } from "@/lib/api";
 
 /**
- * Map pins, built on the original LIFECLOCK icon set.
+ * Map pins.
  *
- * Two changes from the earlier version:
+ * Keeps the original icon set — truck, vessel, plane — and the sonar ring,
+ * which was the best thing about the first map. Two things are different:
  *
- *  1. Colour comes from the LIFE CLOCK, not a generic risk score. A pin's
- *     colour is the answer to "how long has this cargo got", which is the
- *     question the whole product is about.
- *  2. The vehicle rotates to its heading, so a fleet of ships reads as moving
- *     in a direction rather than as a scatter of dots.
- *
- * The sonar ring is kept — it was the best thing about the old map — but it is
- * now reserved for shipments that actually need attention, so it means
- * something instead of being ambient decoration.
+ *  1. Colour comes from the LIFE CLOCK, not a generic risk score, so a pin
+ *     answers "how long has this cargo got".
+ *  2. The vehicle glyph stays UPRIGHT and a separate chevron shows the
+ *     heading. Rotating the glyph itself meant anything travelling west was
+ *     drawn upside down, which read as broken rather than as westbound.
  */
 
 export const TRUCK_SVG =
@@ -23,22 +20,20 @@ export const VESSEL_SVG =
   `<path d="M2 20a2 2 0 002 2h16a2 2 0 002-2"/><path d="M5 20V10h14v10"/><path d="M8 10V6l4-4 4 4v4"/><line x1="12" y1="6" x2="12" y2="10"/>`;
 export const PLANE_SVG =
   `<path d="M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19.5 2.5S18 2 16.5 3.5L13 7 4.8 5.2A1 1 0 004 6l3 4.5-4 4V16l4-1 4 3h2l1-5.2z"/>`;
-export const DEPOT_SVG =
-  `<path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><rect x="9" y="13" width="6" height="8"/>`;
-
-/** Life-clock state drives colour, ring and how fast it pulses. */
-const STATE_STYLE: Record<ClockState, { colour: string; ring: boolean; period: string }> = {
-  green: { colour: "#22c55e", ring: false, period: "0s" },
-  amber: { colour: "#f59e0b", ring: true, period: "2.6s" },
-  red: { colour: "#ef4444", ring: true, period: "1.3s" },
-  black: { colour: "#991b1b", ring: true, period: "0.8s" },
-};
 
 const MODE_SVG: Record<string, string> = {
   Road: TRUCK_SVG,
   Sea: VESSEL_SVG,
   Air: PLANE_SVG,
   Rail: TRUCK_SVG,
+};
+
+/** The life clock drives colour and whether the pin pulses, and how fast. */
+const STATE_STYLE: Record<ClockState, { colour: string; ring: boolean; period: string }> = {
+  green: { colour: "#22c55e", ring: false, period: "0s" },
+  amber: { colour: "#f59e0b", ring: true, period: "2.6s" },
+  red: { colour: "#ef4444", ring: true, period: "1.3s" },
+  black: { colour: "#991b1b", ring: true, period: "0.8s" },
 };
 
 export interface PinOptions {
@@ -50,7 +45,45 @@ export interface PinOptions {
   label?: string;
 }
 
-export function shipmentPin({
+/**
+ * Icons are CACHED by their visual signature.
+ *
+ * Building a new L.DivIcon on every render made react-leaflet call
+ * marker.setIcon() on every 2-second poll, which destroys and rebuilds the
+ * icon's DOM element. That killed hover state mid-hover, restarted the sonar
+ * animation, and made tooltips flicker — the "pin hovers are bad" symptom.
+ *
+ * The bearing is bucketed to 15 degrees so a ship nudging its course does not
+ * invalidate the cache; the chevron is smoothly rotated by CSS within a bucket.
+ */
+const iconCache = new Map<string, L.DivIcon>();
+
+export function shipmentPin(opts: PinOptions): L.DivIcon {
+  const bearingBucket = Math.round(((opts.bearing ?? 0) % 360) / 15) * 15;
+  const key = [
+    opts.mode ?? "Road",
+    opts.state ?? "green",
+    bearingBucket,
+    opts.selected ? 1 : 0,
+    opts.halted ? 1 : 0,
+    opts.label ?? "",
+  ].join("|");
+
+  const hit = iconCache.get(key);
+  if (hit) return hit;
+
+  const icon = buildShipmentPin({ ...opts, bearing: bearingBucket });
+  iconCache.set(key, icon);
+  // The cache is bounded: modes x states x 24 buckets x flags is small, but a
+  // long session with many selected labels could grow it.
+  if (iconCache.size > 600) {
+    const oldest = iconCache.keys().next().value;
+    if (oldest) iconCache.delete(oldest);
+  }
+  return icon;
+}
+
+function buildShipmentPin({
   mode = "Road",
   state = "green",
   bearing = 0,
@@ -59,62 +92,81 @@ export function shipmentPin({
   label,
 }: PinOptions): L.DivIcon {
   const { colour, ring, period } = STATE_STYLE[state];
-  const svg = MODE_SVG[mode] ?? TRUCK_SVG;
-  const size = selected ? 42 : 34;
-  // Vehicles point along their heading; a ship's icon reads bow-up, so the
-  // glyph is rotated to the course while the halo stays upright.
-  const rotation = mode === "Air" ? bearing : bearing - 90;
+  const glyph = MODE_SVG[mode] ?? TRUCK_SVG;
+  const size = selected ? 40 : 32;
+  const glyphSize = Math.round(size * 0.46);
+
+  // The chevron sits on the rim of the halo, pointing along the course.
+  // A chevron has no "up", so it is never upside down.
+  const heading = halted
+    ? ""
+    : `<span style="
+         position:absolute;inset:0;
+         transform:rotate(${bearing}deg);
+         transition:transform 1.2s linear;
+         pointer-events:none;">
+         <svg width="${size}" height="${size}" viewBox="0 0 32 32" fill="none"
+              style="position:absolute;inset:0;">
+           <path d="M16 1.5 L19.2 7 H12.8 Z" fill="${colour}" opacity="0.95"/>
+         </svg>
+       </span>`;
 
   return L.divIcon({
     className: "",
     html: `
-      <div class="lc-pin ${selected ? "lc-pin-selected" : ""}" style="
+      <div class="lc-pin${selected ? " lc-pin-selected" : ""}" style="
         position:relative;width:${size}px;height:${size}px;
         display:flex;align-items:center;justify-content:center;">
 
-        ${ring ? `<span class="lc-pin-sonar" style="
+        ${ring ? `<span style="
           position:absolute;inset:0;border-radius:50%;
           border:2px solid ${colour};
-          animation:lcPinSonar ${period} cubic-bezier(0.2,0.8,0.3,1) infinite;"></span>` : ""}
+          animation:lcPinSonar ${period} cubic-bezier(0.2,0.8,0.3,1) infinite;
+          pointer-events:none;"></span>` : ""}
 
         <span style="
-          position:absolute;inset:0;border-radius:50%;
-          background:${colour}22;border:1.5px solid ${colour};
-          ${halted ? "border-style:dashed;" : ""}
-          box-shadow:0 0 0 ${selected ? 4 : 2}px ${colour}22, 0 2px 8px rgba(0,0,0,0.45);"></span>
+          position:absolute;inset:3px;border-radius:50%;
+          background:var(--surface,#111827);
+          border:2px ${halted ? "dashed" : "solid"} ${colour};
+          box-shadow:0 2px 6px rgba(0,0,0,0.35);"></span>
 
-        <svg width="${size * 0.5}" height="${size * 0.5}" viewBox="0 0 24 24"
-             fill="none" stroke="${colour}" stroke-width="2"
+        ${heading}
+
+        <svg width="${glyphSize}" height="${glyphSize}" viewBox="0 0 24 24"
+             fill="none" stroke="${colour}" stroke-width="2.2"
              stroke-linecap="round" stroke-linejoin="round"
-             style="position:relative;transform:rotate(${rotation}deg);transition:transform 1.2s linear;">
-          ${svg}
+             style="position:relative;">
+          ${glyph}
         </svg>
 
         ${label ? `<span style="
-          position:absolute;top:100%;margin-top:3px;white-space:nowrap;
-          font:600 10px/1.2 system-ui,sans-serif;letter-spacing:0.02em;
+          position:absolute;top:100%;left:50%;transform:translateX(-50%);
+          margin-top:4px;white-space:nowrap;
+          font:600 10px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;
           color:${colour};background:var(--surface,#111827);
-          border:1px solid ${colour}55;border-radius:4px;padding:1px 5px;">${label}</span>` : ""}
+          border:1px solid ${colour};border-radius:4px;padding:1px 5px;
+          box-shadow:0 2px 6px rgba(0,0,0,0.3);">${label}</span>` : ""}
       </div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
 }
 
-/** Idle fleet assets waiting to be dispatched. */
+/** Idle fleet assets waiting for a job. Square, so they never read as cargo. */
 export function assetPin(available = true): L.DivIcon {
   const colour = available ? "#22c55e" : "#64748b";
   return L.divIcon({
     className: "",
     html: `
-      <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;position:relative;">
-        <span style="position:absolute;inset:0;border-radius:6px;background:${colour}1f;border:1px solid ${colour};"></span>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${colour}"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:relative;">
+      <div style="width:22px;height:22px;position:relative;display:flex;align-items:center;justify-content:center;">
+        <span style="position:absolute;inset:0;border-radius:5px;
+          background:var(--surface,#111827);border:1.5px solid ${colour};"></span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${colour}"
+             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="position:relative;">
           ${TRUCK_SVG}
         </svg>
       </div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
   });
 }

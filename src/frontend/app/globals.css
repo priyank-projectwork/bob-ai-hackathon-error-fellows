@@ -255,14 +255,24 @@ body {
   100% { transform: scale(2.4);  opacity: 0; }
 }
 
-.lc-pin { transition: transform 160ms ease; }
-.lc-pin:hover { transform: scale(1.12); z-index: 1000; }
-.lc-pin-selected { z-index: 1200; }
+/* Hover lives on an inner element so it is instant and independent of the
+   marker's position transition. */
+.lc-pin { transition: transform 130ms cubic-bezier(0.2, 0, 0, 1); transform-origin: center; }
+.lc-pin:hover { transform: scale(1.18); }
+.leaflet-marker-icon:has(.lc-pin:hover) { z-index: 1000 !important; }
+.leaflet-marker-icon:has(.lc-pin-selected) { z-index: 1200 !important; }
 
-/* Leaflet moves markers with transforms; easing that makes a poll-driven
-   position update read as travel rather than teleporting. */
-.leaflet-marker-icon { transition: transform 1.8s linear; }
-.leaflet-marker-icon.leaflet-zoom-animated { transition: none; }
+/* Leaflet positions markers with transform, so easing that turns a poll-driven
+   jump into travel. Scoped to the shipment layer only: applying it to every
+   marker fought Leaflet's own zoom/pan transforms and made the whole map feel
+   laggy. Disabled while zooming, where Leaflet animates the same property. */
+.lc-map .leaflet-marker-pane > .leaflet-marker-icon {
+  transition: transform 1.9s linear;
+  will-change: transform;
+}
+.leaflet-zoom-anim .leaflet-marker-pane > .leaflet-marker-icon {
+  transition: none !important;
+}
 
 .lc-map .leaflet-container { background: var(--surface); }
 .lc-map .leaflet-control-attribution {
@@ -284,5 +294,6 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .lc-pin-sonar { animation: none !important; }
-  .leaflet-marker-icon { transition: none !important; }
+  .lc-map .leaflet-marker-pane > .leaflet-marker-icon { transition: none !important; }
+  .lc-pin { transition: none !important; }
 }

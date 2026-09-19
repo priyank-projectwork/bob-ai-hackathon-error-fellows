@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, TileLayer, Polyline, CircleMarker, Circle, Marker, Tooltip, useMap } from "react-leaflet";
 import { shipmentPin } from "./mapIcons";
 import "leaflet/dist/leaflet.css";
@@ -21,12 +21,78 @@ const STATE_COLOUR: Record<ClockState, string> = {
 };
 
 /** Keep the view on whatever the operator selected, without fighting them. */
-function FlyTo({ position }: { position: [number, number] | null }) {
+/**
+ * Fly to a shipment when the operator SELECTS it — once.
+ *
+ * Keying this on the position array re-ran it on every 2-second poll, so the
+ * map yanked itself back and re-zoomed while you were trying to look around.
+ * It now fires only when the selected id changes, and never touches the zoom
+ * the operator has chosen.
+ */
+function FlyToSelection({
+  selectedId,
+  getPosition,
+}: {
+  selectedId: string | null | undefined;
+  getPosition: (id: string) => [number, number] | null;
+}) {
   const map = useMap();
+  const lastFlown = useRef<string | null>(null);
+
   useEffect(() => {
-    if (position) map.flyTo([position[1], position[0]], 4, { duration: 0.8 });
-  }, [position, map]);
+    if (!selectedId || lastFlown.current === selectedId) return;
+    const pos = getPosition(selectedId);
+    if (!pos) return;
+    lastFlown.current = selectedId;
+    // Keep whatever zoom the operator is on; just centre on the shipment.
+    map.panTo([pos[1], pos[0]], { animate: true, duration: 0.7 });
+  }, [selectedId, map, getPosition]);
+
+  useEffect(() => {
+    if (!selectedId) lastFlown.current = null;
+  }, [selectedId]);
+
   return null;
+}
+
+/** "Fit everything" and "follow the selection" as explicit operator choices. */
+function MapControls({
+  shipments,
+  selectedId,
+  getPosition,
+}: {
+  shipments: MovingShipment[];
+  selectedId: string | null | undefined;
+  getPosition: (id: string) => [number, number] | null;
+}) {
+  const map = useMap();
+
+  const fitAll = () => {
+    const pts = shipments.filter((s) => s.position).map((s) => [s.position![1], s.position![0]] as [number, number]);
+    if (pts.length) map.fitBounds(pts, { padding: [40, 40], maxZoom: 5 });
+  };
+
+  const centreSelected = () => {
+    if (!selectedId) return;
+    const pos = getPosition(selectedId);
+    if (pos) map.setView([pos[1], pos[0]], Math.max(map.getZoom(), 5), { animate: true });
+  };
+
+  return (
+    <div className="absolute right-3 top-14 z-[500] flex flex-col gap-1.5">
+      <button onClick={fitAll} className="lc-btn px-2.5 py-1 text-xs" title="Fit every shipment in view">
+        Fit all
+      </button>
+      <button
+        onClick={centreSelected}
+        disabled={!selectedId}
+        className="lc-btn px-2.5 py-1 text-xs disabled:opacity-40"
+        title="Centre on the selected shipment"
+      >
+        Centre
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -92,6 +158,14 @@ export default function MovingMap({
   }, []);
 
   useEffect(() => { sonarKey.current += 1; }, [selected]);
+
+  // Reading positions through a ref keeps FlyToSelection from re-running on
+  // every poll just because the array identity changed.
+  const positionsRef = useRef<Record<string, [number, number]>>({});
+  positionsRef.current = Object.fromEntries(
+    shipments.filter((s) => s.position).map((s) => [s.shipmentId, s.position as [number, number]])
+  );
+  const positionOf = useCallback((id: string) => positionsRef.current[id] ?? null, []);
 
   const selectedShipment = useMemo(
     () => shipments.find((s) => s.shipmentId === selected) ?? null,
@@ -178,7 +252,7 @@ export default function MovingMap({
               })}
               eventHandlers={{ click: () => onSelect?.(s.shipmentId) }}
             >
-              <Tooltip direction="top" offset={[0, -18]}>
+              <Tooltip direction="top" offset={[0, -20]} opacity={1} sticky={false}>
                 <div className="text-xs leading-relaxed">
                   <div className="font-mono font-semibold">{s.shipmentId}</div>
                   <div>
@@ -201,7 +275,8 @@ export default function MovingMap({
           );
         })}
 
-        <FlyTo position={selectedShipment?.position ?? null} />
+        <FlyToSelection selectedId={selected} getPosition={positionOf} />
+        <MapControls shipments={shipments} selectedId={selected} getPosition={positionOf} />
       </MapContainer>
 
       <div className="lc-card pointer-events-none absolute bottom-3 left-3 z-[500] flex flex-col gap-1 px-3 py-2 text-xs">
