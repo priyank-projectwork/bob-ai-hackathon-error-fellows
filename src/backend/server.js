@@ -297,6 +297,52 @@ app.get("/api/locations", requireDb, async (req, res) => {
 // Mocking "Operations Control Tower Manager" via header or just hardcoded.
 const getMockUser = () => ({ actorType: "Operations Control Tower Manager", actorId: "admin-123" });
 
+// ── Actor identity ───────────────────────────────────────────────────────────
+// Demo-grade identity, not an identity provider. The operator is a single named
+// human; IBM Bob identifies itself with X-Actor: bob (set by the MCP layer) and
+// is tagged with the operator-agent role, which policy.js refuses to let commit.
+const { AGENT_ROLE, can, statusFor } = require("./engines/policy");
+const auditService = require("./services/audit");
+
+const HUMAN_OPERATOR = { sub: "duty-controller", roles: ["controller", "qa_rp"] };
+const BOB_ACTOR = { sub: "bob", roles: [AGENT_ROLE] };
+
+function getActor(req) {
+  const header = String(req.get("X-Actor") || "").toLowerCase();
+  return header === "bob" ? BOB_ACTOR : HUMAN_OPERATOR;
+}
+
+/**
+ * Guard a committing action. Refusals are not silent — they are appended to the
+ * hash chain, so "the agent tried and was stopped" is evidence a judge can read
+ * back out of /api/v1/audit.
+ */
+function requirePermission(action, entityType) {
+  return async (req, res, next) => {
+    const actor = getActor(req);
+    const verdict = can(actor, action);
+    req.actor = actor;
+    if (verdict.allowed) return next();
+    try {
+      await auditService.recordDenial({
+        actor,
+        action,
+        entityType,
+        entityId: req.params?.id ?? null,
+        reason: verdict.code,
+      });
+    } catch (_) {
+      /* never let audit failure mask the refusal */
+    }
+    return res.status(statusFor(verdict.code)).json({
+      error: verdict.code,
+      message: verdict.message,
+      action,
+      actor: actor.sub,
+    });
+  };
+}
+
 app.get("/api/v1/command-center", requireDb, async (req, res) => {
   try {
     const activeDisruptions = await Disruption.find({ status: "Active" });
@@ -410,7 +456,7 @@ app.post("/api/disruptions", requireDb, async (req, res) => {
   }
 });
 
-app.post("/api/v1/recommendations/:id/approve", requireDb, async (req, res) => {
+app.post("/api/v1/recommendations/:id/approve", requireDb, requirePermission("approve_recommendation", "Recommendation"), async (req, res) => {
   try {
     const rec = await Recommendation.findById(req.params.id);
     if (!rec) return res.status(404).json({ error: "Recommendation not found" });
@@ -438,7 +484,7 @@ app.post("/api/v1/recommendations/:id/approve", requireDb, async (req, res) => {
   }
 });
 
-app.post("/api/v1/recommendations/:id/reject", requireDb, async (req, res) => {
+app.post("/api/v1/recommendations/:id/reject", requireDb, requirePermission("reject_recommendation", "Recommendation"), async (req, res) => {
   try {
     const rec = await Recommendation.findById(req.params.id);
     if (!rec) return res.status(404).json({ error: "Recommendation not found" });
@@ -476,8 +522,43 @@ app.post("/api/v1/reset", requireDb, async (req, res) => {
 
 app.get("/api/v1/audit", requireDb, async (req, res) => {
   try {
-    const events = await AuditEvent.find().sort({ createdAt: -1 }).limit(50).lean();
+    const limit = Math.min(Number(req.query.limit) || 50, 500);
+    const events = await auditService.list(limit);
     res.json({ events });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Walk the whole chain and report the first row where the recomputed hash stops
+ * matching. A judge can tamper with one document in Mongo and watch this flip.
+ */
+app.get("/api/v1/audit/verify", requireDb, async (req, res) => {
+  try {
+    res.json(await auditService.verify());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Recording endpoint for the Bob PostToolUse hook: every MCP tool call Bob
+ * makes lands in the same chain as human actions, attributed to actor "bob".
+ */
+app.post("/api/v1/audit/bob-call", requireDb, async (req, res) => {
+  try {
+    const { tool, args, result } = req.body || {};
+    if (!tool) return res.status(400).json({ error: "tool is required" });
+    const event = await auditService.record({
+      actor: BOB_ACTOR,
+      action: "mcp_tool_call",
+      entityType: "McpTool",
+      entityId: String(tool).slice(0, 120),
+      outcome: "recorded",
+      payload: { tool, args: args ?? null, result: result ?? null },
+    });
+    res.status(201).json({ seq: event.seq, hash: event.hash });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
