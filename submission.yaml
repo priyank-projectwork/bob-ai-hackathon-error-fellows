@@ -50,7 +50,7 @@ submission:
     frameworks: ["Next.js 16", "React 19", "Express 5", "Socket.IO", "Mongoose", "Tailwind CSS 4", "Recharts", "React Leaflet"]
     ibm_technologies: ["watsonx.ai (meta-llama/llama-4-maverick-17b-128e-instruct-fp8)", "IBM watsonx AI Node.js SDK (@ibm-cloud/watsonx-ai)", "IBM Bob"]
     databases: ["MongoDB 7 (via Mongoose ODM)"]
-    other: ["Node.js 20", "Socket.IO WebSockets", "Leaflet geospatial maps", "Docker (optional)"]
+    other: ["Node.js 20", "Socket.IO WebSockets", "Leaflet geospatial maps", "MCP (Model Context Protocol)"]
 
   what_we_are_most_proud_of: >
     The architecture principle we are most proud of is the clean separation between

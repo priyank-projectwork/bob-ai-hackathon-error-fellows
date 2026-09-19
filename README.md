@@ -93,7 +93,7 @@ See [`docs/setup-guide.md`](docs/setup-guide.md) for full instructions.
 # Prerequisites: Node.js 20+, MongoDB 7 running on port 27017
 
 # 1. Clone the repo
-git clone https://github.com/nilkanth-patel/bob-ai-hackathon-error-fellows.git
+git clone https://github.com/priyank-projectwork/bob-ai-hackathon-error-fellows.git
 cd bob-ai-hackathon-error-fellows
 
 # 2. Configure environment
