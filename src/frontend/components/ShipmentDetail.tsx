@@ -7,10 +7,55 @@ import { LifeClockRing, TwoClocks } from "./LifeClockRing";
  * Everything known about one shipment, in the order a duty officer needs it:
  * how long it has, what is wrong, why, and what the rule says to do about it.
  */
-export function ShipmentDetail({ shipmentId, onClose }: { shipmentId: string; onClose: () => void }) {
+export function ShipmentDetail({
+  shipmentId,
+  onClose,
+  onAction,
+}: {
+  shipmentId: string;
+  onClose: () => void;
+  onAction?: () => void;
+}) {
   const [clock, setClock] = useState<LifeClock | null>(null);
   const [excursion, setExcursion] = useState<Excursion | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const [outcome, setOutcome] = useState<
+    { kind: "signed"; hash: string } | { kind: "refused"; message: string; actor: string } | null
+  >(null);
+  const [busy, setBusy] = useState(false);
+
+  /**
+   * Sign the disposition — or let Bob try, and be refused.
+   *
+   * This is the product's whole argument in two buttons: a human commits, an
+   * agent cannot. Before this, the only way to see the refusal was to install
+   * IBM Bob or send a curl request by hand.
+   */
+  const sign = async (asBob: boolean) => {
+    if (!excursion) return;
+    setBusy(true);
+    setOutcome(null);
+    try {
+      const res = await api.signDisposition(
+        excursion._id,
+        excursion.recommendedDisposition ?? "quarantine_qa",
+        reason || "Reviewed against the rule profile",
+        asBob
+      );
+      setOutcome({ kind: "signed", hash: res.auditHash });
+    } catch (e) {
+      const err = e as { status?: number; message?: string };
+      setOutcome({
+        kind: "refused",
+        message: err.message ?? "refused",
+        actor: asBob ? "bob" : "operator",
+      });
+    } finally {
+      setBusy(false);
+      onAction?.();
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -110,9 +155,47 @@ export function ShipmentDetail({ shipmentId, onClose }: { shipmentId: string; on
               </div>
             )}
           </div>
-          <div className="mt-2 border-t pt-2 text-xs" style={{ borderColor: "var(--warn)" }}>
-            Recommended: <strong>{excursion.recommendedDisposition}</strong>
-            <span className="lc-muted"> — must be signed by {excursion.requiredRole}</span>
+          <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--warn)" }}>
+            <div className="text-xs">
+              Recommended: <strong>{excursion.recommendedDisposition}</strong>
+              <span className="lc-muted"> — must be signed by {excursion.requiredRole}</span>
+            </div>
+
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Reason for the record (optional)"
+              className="mt-2 w-full rounded-lg border px-2.5 py-1.5 text-sm"
+              style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--text)" }}
+            />
+
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                onClick={() => sign(false)}
+                disabled={busy}
+                className="lc-btn is-active flex-1 py-2 font-semibold disabled:opacity-50"
+              >
+                Sign as {excursion.requiredRole} — {excursion.recommendedDisposition}
+              </button>
+              <button onClick={() => sign(true)} disabled={busy} className="lc-btn disabled:opacity-50">
+                Let Bob try
+              </button>
+            </div>
+
+            {outcome?.kind === "signed" && (
+              <p className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--ok-bg)", color: "var(--ok)" }}>
+                Signed and written to the audit chain ·{" "}
+                <span className="font-mono">{outcome.hash.slice(0, 12)}</span>
+              </p>
+            )}
+            {outcome?.kind === "refused" && (
+              <p className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--danger-bg)", color: "var(--danger)" }}>
+                <strong>Refused</strong> — {outcome.message}
+                {outcome.actor === "bob" && (
+                  <> The refusal is now in the audit trail below, attributed to the agent.</>
+                )}
+              </p>
+            )}
           </div>
         </div>
       ) : (

@@ -29,6 +29,8 @@ export function AuditPanel() {
     setBusy(true);
     try {
       setVerdict(await api.verifyAudit());
+    } catch {
+      setVerdict({ valid: false, length: 0, brokenAt: null, reason: "could not reach the backend" });
     } finally {
       setBusy(false);
     }
@@ -56,10 +58,10 @@ export function AuditPanel() {
 
       {events.length === 0 && <p className="text-sm lc-subtle">No recorded actions yet.</p>}
 
-      <ol className="flex flex-col gap-1">
+      <ol className="flex max-h-[320px] flex-col gap-1 overflow-y-auto pr-1">
         {events.map((e) => (
           <li
-            key={e.hash ?? `legacy-${e.seq ?? Math.random()}`}
+            key={e.hash ?? `legacy-${e.seq}`}
             className="flex flex-wrap items-baseline gap-3 rounded-lg border px-3 py-2 text-sm"
             style={
               e.outcome === "denied"
@@ -75,7 +77,14 @@ export function AuditPanel() {
               </span>
             )}
             <span className="lc-muted">{e.entityId}</span>
+            {e.actor?.roles?.includes("operator-agent") && (
+              <span className="lc-chip lc-chip-neutral">agent</span>
+            )}
+            {typeof e.payload?.reason === "string" && (
+              <span className="lc-subtle">{e.payload.reason}</span>
+            )}
             <span className="ml-auto flex items-center gap-2 font-mono text-xs lc-subtle">
+              {e.at && <span>{new Date(e.at).toISOString().slice(11, 19)}</span>}
               {/* Rows written before the hash chain existed carry actorId
                   instead of actor.sub and have no hash at all. Render them
                   rather than crashing the panel. */}

@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { api, type LifeClock } from "@/lib/api";
+import { useState } from "react";
+import type { LifeClock } from "@/lib/api";
 import { LifeClockRing, TwoClocks } from "./LifeClockRing";
 
 const STATE_LABEL: Record<string, string> = {
@@ -15,29 +15,16 @@ const STATE_LABEL: Record<string, string> = {
  * it has left. With hundreds in transit, nobody scrolls a list — the system
  * says what needs a decision and everything healthy collapses out of the way.
  */
-export function TriageQueue({ onSelect }: { onSelect?: (id: string) => void }) {
-  const [clocks, setClocks] = useState<LifeClock[]>([]);
-  const [error, setError] = useState<string | null>(null);
+export function TriageQueue({
+  clocks,
+  selected,
+  onSelect,
+}: {
+  clocks: LifeClock[];
+  selected?: string | null;
+  onSelect?: (id: string) => void;
+}) {
   const [showAll, setShowAll] = useState(false);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const r = await api.lifeClocks();
-        setClocks(r.clocks);
-        setError(null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "could not load");
-      }
-    };
-    load();
-    const t = setInterval(load, 4000);
-    return () => clearInterval(t);
-  }, []);
-
-  if (error) {
-    return <div className="lc-card p-4 text-sm" style={{ borderColor: "var(--danger)", background: "var(--danger-bg)" }}>Could not load life clocks: {error}</div>;
-  }
 
   const needsAttention = clocks.filter((c) => c.state !== "green");
   const healthy = clocks.length - needsAttention.length;
@@ -68,12 +55,18 @@ export function TriageQueue({ onSelect }: { onSelect?: (id: string) => void }) {
         </div>
       )}
 
-      <ul className="flex flex-col gap-2">
+      <ul className="flex max-h-[560px] flex-col gap-2 overflow-y-auto pr-1">
         {shown.map((c) => (
           <li key={c.shipmentId}>
             <button
               onClick={() => onSelect?.(c.shipmentId)}
+              aria-pressed={selected === c.shipmentId}
               className="lc-card flex w-full items-center gap-4 p-3.5 text-left transition-colors hover:border-[var(--border-strong)]"
+              style={
+                selected === c.shipmentId
+                  ? { borderColor: "var(--accent)", boxShadow: "inset 0 0 0 1px var(--accent)" }
+                  : undefined
+              }
             >
               <LifeClockRing hours={c.lifeClockH} state={c.state} size={64} />
               <div className="min-w-0 flex-1">

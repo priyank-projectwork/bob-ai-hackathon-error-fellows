@@ -58,13 +58,45 @@ function bandFor(profile, tempC) {
   return null;
 }
 
-/** Thermal summary the clock needs. */
-function thermalFrom(excursion, profile, freezeSustainedMin) {
+/**
+ * Thermal summary the clock needs.
+ *
+ * packagingHoldRemainingH is what the packaging can still hold for, and it
+ * drains with ELAPSED TRANSIT, not with time out of range — an insulated
+ * shipper qualified for 96 h has been using those hours since it was sealed.
+ *
+ * Omitting it was a real defect: viabilityClock fell back to 0, so
+ * stabilityMarginH collapsed to the sum of unspent band budgets. A frozen
+ * shipment sitting at -19.99 C, dead centre of its -25..-10 range with no
+ * excursion, reported 4 h of life and showed as CRITICAL with $88k at risk.
+ * Ten shipments sat there permanently.
+ */
+const LIVE_POWER = new Set([
+  "unit_running", "vessel_plug", "terminal_plug", "cold_depot", "bonded_cold_store",
+]);
+
+function thermalFrom(excursion, profile, freezeSustainedMin, { departedAtMs, nowMs, powerSource } = {}) {
+  const holdQualH = profile?.packaging?.holdQualH ?? 0;
+  const passive = profile?.packaging?.kind === "passive_shipper";
+
+  // An ACTIVE reefer's qualified hold time is a reserve, not a countdown: it
+  // is what the box can hold for once the power goes. While the unit is
+  // running that reserve is intact. Only a passive shipper — or an active one
+  // that has lost power — burns it with elapsed time.
+  //
+  // Draining it unconditionally made every frozen shipment read CRITICAL while
+  // sitting at -19.99 C, dead centre of its range, with no excursion at all.
+  const onPower = LIVE_POWER.has(powerSource ?? "unit_running");
+  const burning = passive || !onPower;
+  const elapsedH =
+    burning && departedAtMs && nowMs ? Math.max(0, (nowMs - departedAtMs) / 3.6e6) : 0;
+
   return {
     consumedH: Object.fromEntries(
       Object.entries(excursion?.bandMinutes ?? {}).map(([k, v]) => [k, v / 60])
     ),
     freezeSustainedMin: freezeSustainedMin ?? 0,
+    packagingHoldRemainingH: Math.max(0, holdQualH - elapsedH),
   };
 }
 
@@ -216,7 +248,11 @@ async function processReading(reading, { emit } = {}) {
     needByAtMs: shipment.needByAt ? new Date(shipment.needByAt).getTime() : nowMs + 72 * H,
     predictedEtaAtMs: shipment.eta ? new Date(shipment.eta).getTime() : nowMs + 48 * H,
     profile,
-    thermal: thermalFrom(openExc, profile, freezeSustained),
+    thermal: thermalFrom(openExc, profile, freezeSustained, {
+      departedAtMs: shipment.departedAt ? new Date(shipment.departedAt).getTime() : null,
+      nowMs,
+      powerSource: reading.powerSource,
+    }),
     powerSource: reading.powerSource ?? "unit_running",
   });
   out.clock = clock;
@@ -314,7 +350,13 @@ async function raiseAlert({ shipmentId, kind, severity, title, message, entityId
 }
 
 /** The life clock for one shipment, computed on demand. */
-async function lifeClockFor(shipmentId, nowMs) {
+/**
+ * @param {object} [opts.predictedEtaAtMs] live ETA from the motion engine.
+ *   Without it the schedule clock reads the ETA written once at seed time, so
+ *   "until late" never moves and the binding-constraint badge can name the
+ *   wrong clock — which is the product's entire argument.
+ */
+async function lifeClockFor(shipmentId, nowMs, opts = {}) {
   const shipment = await Shipment.findOne({ shipmentId }).lean();
   if (!shipment) return null;
   const profile = shipment.tempProfileId ? await RuleProfile.findById(shipment.tempProfileId).lean() : null;
@@ -327,9 +369,15 @@ async function lifeClockFor(shipmentId, nowMs) {
   const clock = clockEngine.computeClock({
     nowMs,
     needByAtMs: shipment.needByAt ? new Date(shipment.needByAt).getTime() : nowMs + 72 * H,
-    predictedEtaAtMs: shipment.eta ? new Date(shipment.eta).getTime() : nowMs + 48 * H,
+    predictedEtaAtMs:
+      opts.predictedEtaAtMs ??
+      (shipment.eta ? new Date(shipment.eta).getTime() : nowMs + 48 * H),
     profile,
-    thermal: thermalFrom(openExc, profile, openExc?.bandMinutes?.freeze ?? 0),
+    thermal: thermalFrom(openExc, profile, openExc?.bandMinutes?.freeze ?? 0, {
+      departedAtMs: shipment.departedAt ? new Date(shipment.departedAt).getTime() : null,
+      nowMs,
+      powerSource: last?.powerSource ?? "unit_running",
+    }),
     powerSource: last?.powerSource ?? "unit_running",
   });
 

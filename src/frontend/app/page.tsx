@@ -1,18 +1,20 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { TimeBar } from "@/components/TimeBar";
 import { TriageQueue } from "@/components/TriageQueue";
 import { AuditPanel } from "@/components/AuditPanel";
+import { KpiStrip } from "@/components/KpiStrip";
+import { ShipmentDetail } from "@/components/ShipmentDetail";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { api, type Health, type WorldSnapshot } from "@/lib/api";
+import { api, type Health, type LifeClock, type MovingShipment } from "@/lib/api";
 
 // Leaflet touches window on import, so it can only load in the browser.
 const MovingMap = dynamic(() => import("@/components/MovingMap"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-[520px] items-center justify-center rounded-lg border border-slate-700/50 bg-slate-900/30">
-      <span className="text-sm opacity-60">Loading map…</span>
+    <div className="lc-card flex h-[520px] items-center justify-center">
+      <span className="text-sm lc-subtle">Loading map…</span>
     </div>
   ),
 });
@@ -20,33 +22,39 @@ const MovingMap = dynamic(() => import("@/components/MovingMap"), {
 /**
  * Control Tower.
  *
- * One screen answering one question: which shipments need a decision, and how
- * long do I have? Everything here is engine output — the life clocks, the
- * severities, the money — read through lib/api.
+ * ONE poller feeds every panel. Each component used to fetch for itself, so
+ * /world and /lifeclock were each requested twice on different intervals and
+ * the header and the map disagreed about how many shipments were moving for
+ * two seconds out of every four.
  */
 export default function ControlTowerPage() {
   const [health, setHealth] = useState<Health | null>(null);
-  const [world, setWorld] = useState<WorldSnapshot | null>(null);
+  const [shipments, setShipments] = useState<MovingShipment[]>([]);
+  const [clocks, setClocks] = useState<LifeClock[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [auditKey, setAuditKey] = useState(0);
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
+    let alive = true;
     const load = async () => {
-      try {
-        setHealth(await api.health());
-        setWorld(await api.world());
-      } catch {
-        setHealth(null);
-      }
+      const [h, w, lc] = await Promise.allSettled([api.health(), api.world(), api.lifeClocks()]);
+      if (!alive) return;
+      if (h.status === "fulfilled") { setHealth(h.value); setOffline(false); } else setOffline(true);
+      if (w.status === "fulfilled") setShipments(w.value.shipments.filter((s) => s.position));
+      if (lc.status === "fulfilled") setClocks(lc.value.clocks);
     };
     load();
-    const t = setInterval(load, 4000);
-    return () => clearInterval(t);
+    const t = setInterval(load, 2000);
+    return () => { alive = false; clearInterval(t); };
   }, []);
 
-  const moving = world?.shipments.filter((s) => s.moving).length ?? 0;
+  const toggle = useCallback((id: string) => setSelected((p) => (p === id ? null : id)), []);
+  const bumpAudit = useCallback(() => setAuditKey((k) => k + 1), []);
+  const moving = shipments.filter((s) => s.moving).length;
 
   return (
-    <main className="mx-auto flex max-w-7xl flex-col gap-6 p-6">
+    <main className="mx-auto flex max-w-[1600px] flex-col gap-5 p-6">
       <header className="flex flex-wrap items-center gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">LIFECLOCK</h1>
@@ -54,42 +62,53 @@ export default function ControlTowerPage() {
             Every cold shipment has two deadlines. This is the one that bites first.
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-4 text-sm">
+        <div className="ml-auto flex items-center gap-3 text-sm">
+          {offline ? (
+            <span className="lc-chip lc-chip-danger">backend unreachable</span>
+          ) : (
+            health && (
+              <span className="lc-subtle">
+                {health.store} · {health.ai}
+              </span>
+            )
+          )}
           <ThemeToggle />
           <a href="/classic" className="lc-muted underline hover:text-[var(--text)]">
             classic view
           </a>
-          {health ? (
-            <>
-              <span className="lc-chip lc-chip-ok">
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--ok)" }} aria-hidden />
-                {moving} moving
-              </span>
-              <span className="lc-subtle">
-                {health.store} · {health.ai}
-              </span>
-            </>
-          ) : (
-            <span className="lc-chip lc-chip-danger">backend unreachable</span>
-          )}
         </div>
       </header>
 
-      <TimeBar />
+      {/* The value proposition as numbers, above the fold. */}
+      <KpiStrip clocks={clocks} moving={moving} />
 
       {health?.ai === "fallback" && (
         <p className="lc-card px-4 py-2.5 text-sm lc-muted">
-          Running without watsonx credentials. Every number on this screen is produced by the
-          deterministic engines; only the written explanations fall back to templates.
+          Running without watsonx credentials. Every number here is produced by the deterministic
+          engines; only the written explanations fall back to templates.
         </p>
       )}
 
-      <MovingMap selected={selected} onSelect={setSelected} />
-
-      <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">
-        <TriageQueue onSelect={setSelected} />
-        <AuditPanel />
+      <div className="grid gap-5 xl:grid-cols-[1.05fr_1.25fr]">
+        <div className="flex flex-col gap-5">
+          <TriageQueue clocks={clocks} selected={selected} onSelect={toggle} />
+        </div>
+        <div className="flex flex-col gap-5">
+          <MovingMap shipments={shipments} clocks={clocks} selected={selected} onSelect={toggle} />
+          {selected ? (
+            <ShipmentDetail shipmentId={selected} onClose={() => setSelected(null)} onAction={bumpAudit} />
+          ) : (
+            <div className="lc-card p-6 text-sm lc-muted">
+              Select a shipment to see both clocks, its excursion, and what the rule says to do
+              about it.
+            </div>
+          )}
+          <AuditPanel key={auditKey} />
+        </div>
       </div>
+
+      {/* Simulation controls are chrome, not the point of the screen. */}
+      <TimeBar />
     </main>
   );
 }

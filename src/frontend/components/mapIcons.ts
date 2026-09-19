@@ -29,11 +29,17 @@ const MODE_SVG: Record<string, string> = {
 };
 
 /** The life clock drives colour and whether the pin pulses, and how fast. */
+/**
+ * Colours come from the theme tokens, so pins follow light mode. Sonar is
+ * reserved for red and black: a dozen amber rings shimmering at once is noise,
+ * and on a compressed video constantly-moving high-contrast rings eat the
+ * bitrate that should be spent on the numbers.
+ */
 const STATE_STYLE: Record<ClockState, { colour: string; ring: boolean; period: string }> = {
-  green: { colour: "#22c55e", ring: false, period: "0s" },
-  amber: { colour: "#f59e0b", ring: true, period: "2.6s" },
-  red: { colour: "#ef4444", ring: true, period: "1.3s" },
-  black: { colour: "#991b1b", ring: true, period: "0.8s" },
+  green: { colour: "var(--ok)", ring: false, period: "0s" },
+  amber: { colour: "var(--warn)", ring: false, period: "0s" },
+  red: { colour: "var(--danger)", ring: true, period: "1.4s" },
+  black: { colour: "var(--dead)", ring: true, period: "0.9s" },
 };
 
 export interface PinOptions {
@@ -59,37 +65,32 @@ export interface PinOptions {
 const iconCache = new Map<string, L.DivIcon>();
 
 export function shipmentPin(opts: PinOptions): L.DivIcon {
-  const bearingBucket = Math.round(((opts.bearing ?? 0) % 360) / 15) * 15;
+  // Bearing and label are deliberately NOT part of the identity. Including
+  // them meant selecting a pin, or a ship nudging its course, changed the key
+  // -> marker.setIcon() -> Leaflet replaces innerHTML -> the .lc-pin element
+  // you are hovering is destroyed mid-hover and the sonar restarts. The
+  // chevron is rotated by a CSS variable set per marker instead.
   const key = [
     opts.mode ?? "Road",
     opts.state ?? "green",
-    bearingBucket,
     opts.selected ? 1 : 0,
     opts.halted ? 1 : 0,
-    opts.label ?? "",
   ].join("|");
 
   const hit = iconCache.get(key);
   if (hit) return hit;
 
-  const icon = buildShipmentPin({ ...opts, bearing: bearingBucket });
+  const icon = buildShipmentPin(opts);
   iconCache.set(key, icon);
-  // The cache is bounded: modes x states x 24 buckets x flags is small, but a
-  // long session with many selected labels could grow it.
-  if (iconCache.size > 600) {
-    const oldest = iconCache.keys().next().value;
-    if (oldest) iconCache.delete(oldest);
-  }
+  // Bounded by construction: 4 modes x 4 states x selected x halted = 64.
   return icon;
 }
 
 function buildShipmentPin({
   mode = "Road",
   state = "green",
-  bearing = 0,
   selected = false,
   halted = false,
-  label,
 }: PinOptions): L.DivIcon {
   const { colour, ring, period } = STATE_STYLE[state];
   const glyph = MODE_SVG[mode] ?? TRUCK_SVG;
@@ -100,10 +101,8 @@ function buildShipmentPin({
   // A chevron has no "up", so it is never upside down.
   const heading = halted
     ? ""
-    : `<span style="
+    : `<span class="lc-pin-heading" style="
          position:absolute;inset:0;
-         transform:rotate(${bearing}deg);
-         transition:transform 1.2s linear;
          pointer-events:none;">
          <svg width="${size}" height="${size}" viewBox="0 0 32 32" fill="none"
               style="position:absolute;inset:0;">
@@ -118,7 +117,7 @@ function buildShipmentPin({
         position:relative;width:${size}px;height:${size}px;
         display:flex;align-items:center;justify-content:center;">
 
-        ${ring ? `<span style="
+        ${ring ? `<span class="lc-pin-sonar" style="
           position:absolute;inset:0;border-radius:50%;
           border:2px solid ${colour};
           animation:lcPinSonar ${period} cubic-bezier(0.2,0.8,0.3,1) infinite;
@@ -139,16 +138,12 @@ function buildShipmentPin({
           ${glyph}
         </svg>
 
-        ${label ? `<span style="
-          position:absolute;top:100%;left:50%;transform:translateX(-50%);
-          margin-top:4px;white-space:nowrap;
-          font:600 10px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;
-          color:${colour};background:var(--surface,#111827);
-          border:1px solid ${colour};border-radius:4px;padding:1px 5px;
-          box-shadow:0 2px 6px rgba(0,0,0,0.3);">${label}</span>` : ""}
       </div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
+    // Clears the halo and the chevron, and tracks the pin size automatically
+    // instead of a hardcoded offset that collided with the selected pin.
+    tooltipAnchor: [0, -(size / 2 + 8)],
   });
 }
 

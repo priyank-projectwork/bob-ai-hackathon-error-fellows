@@ -693,7 +693,10 @@ world.configure({
     });
   },
 });
-world.loadScenario({ events: [] });
+// The hero scenario: the Mombasa strike, the door-open feint that the sanity
+// rules absorb, and the sustained freeze that produces a Critical disposition
+// for a human to sign. It was written, recorded against, and then never loaded.
+world.loadScenario(require("./data/scenarios/in-ke.json"));
 
 app.use("/api/v1", buildSimRouter({
   world,
@@ -702,12 +705,45 @@ app.use("/api/v1", buildSimRouter({
   onIngest: handleReading,
 }));
 
+/**
+ * Live ETAs from the motion engine, keyed by shipmentId.
+ *
+ * The schedule clock used to read shipment.eta, which is written once at seed
+ * time and never again — so "until late" was a constant and pressing Play
+ * changed nothing in the queue. These come from where the shipment actually
+ * is right now.
+ */
+async function liveEtas() {
+  const motion = require("./engines/motion");
+  const simNow = world.clock.now();
+  const docs = await loadMovingShipments();
+  const out = {};
+  for (const d of docs) {
+    if (!Array.isArray(d.routeCoords) || d.routeCoords.length < 2) continue;
+    const st = world.state(d.shipmentId);
+    const pos = motion.advance({
+      coords: d.routeCoords,
+      departedAtMs: d.departedAtMs,
+      nowMs: simNow,
+      speedKmh: d.speedKmh,
+      dwellHours: d.dwellHours ?? 0,
+      halted: st.halted,
+      haltedAtKm: st.haltedAtKm,
+    });
+    if (pos.etaMs) out[d.shipmentId] = pos.etaMs;
+  }
+  return out;
+}
+
 // ── Cold chain (row 7) ───────────────────────────────────────────────────────
 
 /** The life clock for one shipment: two clocks, the binding one, and the money. */
 app.get("/api/v1/lifeclock/:shipmentId", requireDb, async (req, res) => {
   try {
-    const lc = await coldChain.lifeClockFor(req.params.shipmentId, world.clock.now());
+    const etas = await liveEtas();
+    const lc = await coldChain.lifeClockFor(req.params.shipmentId, world.clock.now(), {
+      predictedEtaAtMs: etas[req.params.shipmentId],
+    });
     if (!lc) return res.status(404).json({ error: "shipment or rule profile not found" });
     res.json(lc);
   } catch (err) {
@@ -720,9 +756,12 @@ app.get("/api/v1/lifeclock", requireDb, async (req, res) => {
   try {
     const nowMs = world.clock.now();
     const shipments = await Shipment.find({ status: "In Transit" }, { shipmentId: 1 }).lean();
+    const etas = await liveEtas();
     const clocks = [];
     for (const s of shipments) {
-      const lc = await coldChain.lifeClockFor(s.shipmentId, nowMs);
+      const lc = await coldChain.lifeClockFor(s.shipmentId, nowMs, {
+        predictedEtaAtMs: etas[s.shipmentId],
+      });
       if (lc) clocks.push(lc);
     }
     clocks.sort((a, b) => a.lifeClockH - b.lifeClockH);

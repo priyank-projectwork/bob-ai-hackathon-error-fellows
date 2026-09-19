@@ -106,58 +106,50 @@ function MapControls({
  * time" is visible on the map rather than buried in a panel.
  */
 export default function MovingMap({
+  shipments,
+  clocks: clockList,
   selected,
   onSelect,
 }: {
+  shipments: MovingShipment[];
+  clocks: LifeClock[];
   selected?: string | null;
   onSelect?: (id: string) => void;
 }) {
-  const [shipments, setShipments] = useState<MovingShipment[]>([]);
-  const [clocks, setClocks] = useState<Record<string, LifeClock>>({});
-  const [error, setError] = useState<string | null>(null);
+  const clocks = useMemo(
+    () => Object.fromEntries(clockList.map((c) => [c.shipmentId, c])),
+    [clockList]
+  );
+  const error = null;
   const [disruptions, setDisruptions] = useState<DisruptionZone[]>([]);
   const sonarKey = useRef(0);
 
+  // Disruption zones are the one thing not in the shared poll; they change
+  // rarely and are decoration, so a failure here must never blank the map.
   useEffect(() => {
     let alive = true;
     const load = async () => {
       try {
-        const [world, lc] = await Promise.all([api.world(), api.lifeClocks()]);
-        if (!alive) return;
-        // Disruption zones are optional — the map still works without them.
-        try {
-          const res = await fetch(`${API}/api/locations`);
-          if (res.ok) {
-            const body = await res.json();
-            setDisruptions(
-              (body.disruptions ?? [])
-                .filter((d: any) => d?.geometry?.lat != null && d?.geometry?.lng != null)
-                .map((d: any) => ({
-                  id: String(d._id ?? d.title),
-                  title: d.title,
-                  type: d.type,
-                  centre: [d.geometry.lng, d.geometry.lat] as [number, number],
-                  radiusKm: d.geometry.radius ?? 80,
-                }))
-            );
-          }
-        } catch { /* zones are decoration, never block the map */ }
-        setShipments(world.shipments.filter((s) => s.position));
-        setClocks(Object.fromEntries(lc.clocks.map((c) => [c.shipmentId, c])));
-        setError(null);
-      } catch (e) {
-        if (alive) setError(e instanceof Error ? e.message : "could not load the world");
-      }
+        const res = await fetch(`${API}/api/locations`);
+        if (!res.ok || !alive) return;
+        const body = await res.json();
+        setDisruptions(
+          (body.disruptions ?? [])
+            .filter((d: { geometry?: { lat?: number; lng?: number } }) => d?.geometry?.lat != null && d?.geometry?.lng != null)
+            .map((d: { _id?: string; title?: string; type?: string; geometry: { lat: number; lng: number; radius?: number } }) => ({
+              id: String(d._id ?? d.title),
+              title: d.title,
+              type: d.type,
+              centre: [d.geometry.lng, d.geometry.lat] as [number, number],
+              radiusKm: d.geometry.radius ?? 80,
+            }))
+        );
+      } catch { /* zones never block the map */ }
     };
     load();
-    const t = setInterval(load, 2000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
+    const t = setInterval(load, 5000);
+    return () => { alive = false; clearInterval(t); };
   }, []);
-
-  useEffect(() => { sonarKey.current += 1; }, [selected]);
 
   // Reading positions through a ref keeps FlyToSelection from re-running on
   // every poll just because the array identity changed.

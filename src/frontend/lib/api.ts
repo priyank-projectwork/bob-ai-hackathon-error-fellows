@@ -152,6 +152,7 @@ export interface AuditEvent {
   entityType?: string;
   entityId?: string;
   outcome: "allowed" | "denied" | "recorded";
+  payload?: Record<string, unknown> | null;
   hash?: string;
 }
 
