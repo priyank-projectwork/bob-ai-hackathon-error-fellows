@@ -94,3 +94,5 @@ logs/
 
 # -- Bob session export files ------------------------------------------------
 bob-task-*.json
+# Tooling
+.serena/
