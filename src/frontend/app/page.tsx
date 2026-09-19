@@ -614,13 +614,31 @@ export default function Dashboard() {
     });
 
     socket.on("telemetry.alert", (a: AlertData) => {
-      setAlerts(prev => [a, ...prev]);
+      // Alerts are COALESCED server-side: one open alert per problem, updated
+      // in place rather than duplicated. So the same _id arrives repeatedly as
+      // a situation develops. Replace the existing row instead of prepending a
+      // second copy, which was producing duplicate React keys and an alert
+      // count that only ever climbed.
+      let isNew = false;
+      setAlerts(prev => {
+        const at = prev.findIndex(x => x._id === a._id);
+        if (at === -1) {
+          isNew = true;
+          return [a, ...prev].slice(0, 100);   // bound the list on a long run
+        }
+        const next = [...prev];
+        next[at] = a;
+        return next;
+      });
+
       setNewAlertIds(prev => {
         const s = new Set(prev); s.add(a._id);
         setTimeout(() => setNewAlertIds(p => { const n = new Set(p); n.delete(a._id); return n; }), 3000);
         return s;
       });
-      setKpis(prev => ({ ...prev, openColdChainAlerts: prev.openColdChainAlerts + 1 }));
+
+      // Only count a genuinely new problem.
+      if (isNew) setKpis(prev => ({ ...prev, openColdChainAlerts: prev.openColdChainAlerts + 1 }));
     });
 
     // Backend resolved previous scenario and wiped recs
@@ -648,9 +666,13 @@ export default function Dashboard() {
 
     socket.on("recommendation.created", (rec: RecommendationData) => {
       setRecs(prev => {
-        // Replace any existing pending rec for the same shipment
-        const without = prev.filter(r => !(r.entityId === rec.entityId && (!r.status || r.status === "Pending")));
-        return [rec, ...without];
+        // One pending recommendation per shipment, and never the same document
+        // twice — the socket can re-emit as a situation develops.
+        const without = prev.filter(
+          r => r._id !== rec._id &&
+               !(r.entityId === rec.entityId && (!r.status || r.status === "Pending"))
+        );
+        return [rec, ...without].slice(0, 50);
       });
       setSimStep(SIM_STEPS.length - 1);
       setTimeout(() => { setSimKey(null); setSimStep(-1); }, 2500);
