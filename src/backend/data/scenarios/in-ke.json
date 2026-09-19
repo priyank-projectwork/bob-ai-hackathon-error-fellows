@@ -1,0 +1,61 @@
+{
+  "id": "in-ke",
+  "name": "Mombasa port strike — Pune to Nairobi vaccine lane",
+  "hero": true,
+  "seed": 42,
+  "description": "A 240,000-dose vaccine container is on the water when Mombasa goes on strike. The schedule clock and the stability clock diverge, which is what makes the answer interesting. A second shipment suffers a sustained freeze so there is a Critical disposition for a human to sign - and for Bob to be refused on.",
+
+  "events": [
+    {
+      "atSimMinute": 0,
+      "kind": "note",
+      "text": "Calm. Everything in range, clocks green."
+    },
+    {
+      "atSimMinute": 12,
+      "kind": "door_open",
+      "shipmentId": "VX-2291",
+      "text": "Doors open at the Jebel Ali transhipment. Planned handling - a short blip the sanity rules absorb, so the later alarm is believed."
+    },
+    {
+      "atSimMinute": 16,
+      "kind": "door_close",
+      "shipmentId": "VX-2291"
+    },
+    {
+      "atSimMinute": 40,
+      "kind": "disruption",
+      "disruptionType": "Strike",
+      "nodeId": "KEMBA",
+      "radiusKm": 60,
+      "expectedEndHours": 96,
+      "headline": "Mombasa port workers begin indefinite strike; berthing suspended",
+      "text": "The disruption Bob raises from a pasted headline."
+    },
+    {
+      "atSimMinute": 72,
+      "kind": "compressor_fault",
+      "shipmentId": "VX-2291",
+      "text": "Reefer compressor fails while the vessel waits offshore. The cargo starts warming toward ambient - this is what the breach predictor catches before 8 C is crossed."
+    },
+    {
+      "atSimMinute": 96,
+      "kind": "freeze_fault",
+      "shipmentId": "VX-2304",
+      "targetTempC": -3.5,
+      "sustainMin": 75,
+      "text": "Unrelated unit overcools a thawed mRNA consignment and holds it below -0.5 C for over an hour. Freeze on a freeze-sensitive product is irreversible: Critical, quarantine, QA/RP signature required. This is the case Bob tries to sign and is refused."
+    },
+    {
+      "atSimMinute": 130,
+      "kind": "power_restored",
+      "shipmentId": "VX-2291",
+      "text": "Rescue reefer plugged in after dispatch - the stability clock stops draining."
+    }
+  ],
+
+  "notes": [
+    "Timings are in simulated minutes from the start of the run. At 60x, minute 72 is 72 minutes of shipment time, about 1.2 hours.",
+    "Nothing here sets a severity, a clock value or a disposition. Those are computed by the engines from the readings this scenario produces - which is why npm run record and npm run demo show the same numbers."
+  ]
+}

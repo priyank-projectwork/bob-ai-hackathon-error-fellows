@@ -1,0 +1,118 @@
+{
+  "_comment": "Lanes are ordered node sequences with a mode per leg. routeCoords are built from these by data/network.js. speedKmh and costPerKm are illustrative; see docs/regulatory-basis.md. The hero lane is IN-KE-SEA.",
+
+  "lanes": [
+    {
+      "id": "IN-KE-SEA",
+      "name": "Pune to Nairobi — sea via Mombasa",
+      "hero": true,
+      "legs": [
+        { "from": "PNQ", "to": "INNSA", "mode": "Road", "speedKmh": 45 },
+        { "from": "INNSA", "to": "KEMBA", "mode": "Sea", "speedKmh": 33, "via": ["AEJEA"] },
+        { "from": "KEMBA", "to": "NBO", "mode": "Road", "speedKmh": 42, "via": ["MTITO"] }
+      ]
+    },
+    {
+      "id": "IN-KE-AIR",
+      "name": "Pune to Nairobi — air via Mumbai",
+      "legs": [
+        { "from": "PNQ", "to": "BOMAIR", "mode": "Road", "speedKmh": 45 },
+        { "from": "BOMAIR", "to": "NBOAIR", "mode": "Air", "speedKmh": 820 },
+        { "from": "NBOAIR", "to": "NBO", "mode": "Road", "speedKmh": 35 }
+      ]
+    },
+    {
+      "id": "IN-KE-NAKURU",
+      "name": "Mombasa to Nakuru regional store",
+      "legs": [
+        { "from": "KEMBA", "to": "NAKURU", "mode": "Road", "speedKmh": 40, "via": ["MTITO", "NBO"] }
+      ]
+    },
+    {
+      "id": "IN-NL-SUEZ",
+      "name": "Pune to Rotterdam — via Suez",
+      "legs": [
+        { "from": "PNQ", "to": "INNSA", "mode": "Road", "speedKmh": 45 },
+        { "from": "INNSA", "to": "NLRTM", "mode": "Sea", "speedKmh": 35, "via": ["BAB", "SUEZ", "MALTA", "GIB"] }
+      ]
+    },
+    {
+      "id": "IN-NL-CAPE",
+      "name": "Pune to Rotterdam — around the Cape",
+      "legs": [
+        { "from": "PNQ", "to": "INNSA", "mode": "Road", "speedKmh": 45 },
+        { "from": "INNSA", "to": "NLRTM", "mode": "Sea", "speedKmh": 35, "via": ["COGH", "GIB"] }
+      ]
+    },
+    {
+      "id": "IN-AE",
+      "name": "Mumbai to Dubai",
+      "legs": [{ "from": "INNSA", "to": "AEJEA", "mode": "Sea", "speedKmh": 33 }]
+    },
+    {
+      "id": "CN-US-PAC",
+      "name": "Shanghai to Los Angeles — trans-Pacific",
+      "legs": [
+        { "from": "CNSHA", "to": "USLAX", "mode": "Sea", "speedKmh": 37, "via": ["PACMID"] }
+      ]
+    },
+    {
+      "id": "US-LAX-DEN",
+      "name": "Los Angeles to Denver",
+      "legs": [{ "from": "LAX", "to": "DEN", "mode": "Road", "speedKmh": 85, "via": ["SLC"] }]
+    },
+    {
+      "id": "US-LAX-DEN-SOUTH",
+      "name": "Los Angeles to Denver — southern route",
+      "legs": [{ "from": "LAX", "to": "DEN", "mode": "Road", "speedKmh": 85, "via": ["PHX", "ABQ"] }]
+    },
+    {
+      "id": "US-LAX-ABQ",
+      "name": "Los Angeles to Albuquerque",
+      "legs": [{ "from": "LAX", "to": "ABQ", "mode": "Road", "speedKmh": 85, "via": ["PHX"] }]
+    },
+    {
+      "id": "US-SAN-PHX",
+      "name": "San Diego to Phoenix",
+      "legs": [{ "from": "SAN", "to": "PHX", "mode": "Road", "speedKmh": 85 }]
+    },
+    {
+      "id": "US-ELP-DEN",
+      "name": "El Paso to Denver",
+      "legs": [{ "from": "ELP", "to": "DEN", "mode": "Road", "speedKmh": 85, "via": ["ABQ"] }]
+    },
+    {
+      "id": "US-ORD-DEN",
+      "name": "Chicago to Denver",
+      "legs": [{ "from": "ORD", "to": "DEN", "mode": "Road", "speedKmh": 85, "via": ["DSM", "OMA"] }]
+    },
+    {
+      "id": "US-ORD-DEN-SOUTH",
+      "name": "Chicago to Denver — via Kansas City",
+      "legs": [{ "from": "ORD", "to": "DEN", "mode": "Road", "speedKmh": 85, "via": ["MCI"] }]
+    },
+    {
+      "id": "US-CLE-ORD",
+      "name": "Cleveland to Chicago",
+      "legs": [{ "from": "CLE", "to": "ORD", "mode": "Road", "speedKmh": 85 }]
+    },
+    {
+      "id": "US-GNV-ATL",
+      "name": "Gainesville to Atlanta",
+      "legs": [{ "from": "GNV", "to": "ATL", "mode": "Road", "speedKmh": 85 }]
+    },
+    {
+      "id": "US-MIA-ATL",
+      "name": "Miami to Atlanta",
+      "legs": [{ "from": "MIA", "to": "ATL", "mode": "Road", "speedKmh": 85, "via": ["GNV"] }]
+    },
+    {
+      "id": "US-BR-SEA",
+      "name": "Miami to Sao Paulo",
+      "legs": [
+        { "from": "MIA", "to": "BRSSZ", "mode": "Sea", "speedKmh": 35, "via": ["CARIB", "RECIFE"] },
+        { "from": "BRSSZ", "to": "SAO", "mode": "Road", "speedKmh": 50 }
+      ]
+    }
+  ]
+}

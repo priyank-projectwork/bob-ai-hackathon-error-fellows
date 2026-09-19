@@ -1,0 +1,35 @@
+{
+  "_comment": "ILLUSTRATIVE trade data. Shaped like the real thing, sourced where we could, but no rate here should be quoted as fact. Vaccines and most human-use pharmaceuticals are duty-free into many markets under the WTO Pharmaceutical Agreement, which is why the vaccine rows are 0 — that direction is real even though the exact figures are ours. See docs/regulatory-basis.md.",
+
+  "rules": [
+    { "country": "KE", "cargoType": "Vaccine", "ratePct": 0, "hsHint": "3002.xx", "basis": "WTO Pharma Agreement — duty-free treatment is real; row is illustrative" },
+    { "country": "NL", "cargoType": "Vaccine", "ratePct": 0, "hsHint": "3002.xx", "basis": "EU duty-free for pharmaceuticals [illustrative]" },
+    { "country": "US", "cargoType": "Vaccine", "ratePct": 0, "hsHint": "3002.xx", "basis": "illustrative" },
+    { "country": "BR", "cargoType": "Vaccine", "ratePct": 0, "hsHint": "3002.xx", "basis": "illustrative" },
+    { "country": "AE", "cargoType": "Vaccine", "ratePct": 0, "hsHint": "3002.xx", "basis": "illustrative" },
+
+    { "country": "AE", "cargoType": "Perishable", "ratePct": 5, "hsHint": "0803 bananas", "basis": "illustrative" },
+    { "country": "NL", "cargoType": "Perishable", "ratePct": 16, "hsHint": "0803 bananas", "basis": "illustrative" },
+    { "country": "US", "cargoType": "Perishable", "ratePct": 2.5, "hsHint": "0803 bananas", "basis": "illustrative" },
+    { "country": "KE", "cargoType": "Perishable", "ratePct": 25, "hsHint": "0803 bananas", "basis": "illustrative" },
+
+    { "country": "*", "cargoType": "Standard", "ratePct": 6.5, "basis": "illustrative catch-all" },
+    { "country": "*", "cargoType": "Perishable", "ratePct": 12, "basis": "illustrative catch-all" },
+    { "country": "*", "cargoType": "Vaccine", "ratePct": 0, "basis": "illustrative catch-all" }
+  ],
+
+  "dwell": [
+    { "country": "IN", "hours": 62, "basis": "illustrative, shaped by World Bank LPI-style benchmarks" },
+    { "country": "AE", "hours": 18, "basis": "illustrative" },
+    { "country": "KE", "hours": 74, "basis": "illustrative" },
+    { "country": "NL", "hours": 12, "basis": "illustrative" },
+    { "country": "US", "hours": 26, "basis": "illustrative" },
+    { "country": "BR", "hours": 58, "basis": "illustrative" },
+    { "country": "CN", "hours": 34, "basis": "illustrative" }
+  ],
+
+  "notes": [
+    "Routing through a third country does not by itself change the duty owed on arrival — origin rules follow where the goods were produced, not where the ship called. Transhipment is modelled as time and fees, never as a duty saving.",
+    "A bonded warehouse or free-trade-zone hold defers duty rather than avoiding it; the tariff-shock option set uses that to buy time, not to dodge the charge."
+  ]
+}

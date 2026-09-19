@@ -1,0 +1,387 @@
+{
+  "_comment": "Rule profiles are versioned DATA, not code. An excursion records the profileKey and version it was judged under and is never re-classified by a later version. confidence: verified = the headline number is in a manufacturer insert or a named guideline; partial = the shape is right but a threshold is ours; illustrative = we chose it. See docs/regulatory-basis.md for the Fact -> Source -> Confidence table.",
+  "profiles": [
+    {
+      "profileKey": "vaccine_2_8_freeze_sensitive",
+      "version": 1,
+      "name": "Vaccine 2-8 C (freeze sensitive)",
+      "confidence": "mixed",
+      "sourceTag": "WHO PQS heat alarm 8 C / 10 h [verified]; freeze -0.5 C / 60 min [verified threshold]; shared warm budget modelled on Comirnaty [illustrative]",
+      "minTempC": 2,
+      "maxTempC": 8,
+      "setpointC": 5,
+      "warningBandC": 1,
+      "freeze": {
+        "sensitive": true,
+        "thresholdC": -0.5,
+        "sustainedMin": 60
+      },
+      "bands": [
+        {
+          "key": "freeze",
+          "minC": -100,
+          "maxC": -0.5,
+          "kind": "freeze",
+          "budgetH": 0,
+          "drainMult": 4
+        },
+        {
+          "key": "cold",
+          "minC": -0.5,
+          "maxC": 2,
+          "kind": "cold",
+          "budgetH": 24,
+          "drainMult": 1
+        },
+        {
+          "key": "warm",
+          "minC": 8,
+          "maxC": 15,
+          "kind": "heat",
+          "budgetH": 12,
+          "drainMult": 1
+        },
+        {
+          "key": "hot",
+          "minC": 15,
+          "maxC": 25,
+          "kind": "heat",
+          "budgetH": 12,
+          "drainMult": 2,
+          "sharesBudgetWith": "warm"
+        },
+        {
+          "key": "extreme",
+          "minC": 25,
+          "maxC": 100,
+          "kind": "heat",
+          "budgetH": 0,
+          "drainMult": 4
+        }
+      ],
+      "mkt": {
+        "reportWindowH": 24,
+        "limitC": 8,
+        "applies": true
+      },
+      "qaMarginH": 24,
+      "packaging": {
+        "kind": "active_reefer",
+        "holdQualH": 96,
+        "holdQualAmbientC": 30
+      },
+      "sensor": {
+        "expectedIntervalMin": 10,
+        "silenceMultiplier": 3,
+        "escalateMultiplier": 6,
+        "spikeDeltaC": 3,
+        "stuckSamples": 6
+      },
+      "excursionOpen": {
+        "minConsecutiveSamples": 2,
+        "minSpanMin": 10
+      }
+    },
+    {
+      "profileKey": "mrna_comirnaty_thawed",
+      "version": 1,
+      "name": "mRNA (Comirnaty) \u2014 thawed",
+      "confidence": "verified",
+      "sourceTag": "Thawed 2-8 C up to 10 weeks; 8-25 C total up to 12 h; do not refreeze [verified, manufacturer insert]",
+      "minTempC": 2,
+      "maxTempC": 8,
+      "setpointC": 5,
+      "warningBandC": 1,
+      "freeze": {
+        "sensitive": true,
+        "thresholdC": -0.5,
+        "sustainedMin": 60,
+        "note": "thawed product must not be refrozen; the -0.5 C threshold is ours [illustrative]"
+      },
+      "bands": [
+        {
+          "key": "freeze",
+          "minC": -100,
+          "maxC": -0.5,
+          "kind": "freeze",
+          "budgetH": 0,
+          "drainMult": 4
+        },
+        {
+          "key": "cold",
+          "minC": -0.5,
+          "maxC": 2,
+          "kind": "cold",
+          "budgetH": 12,
+          "drainMult": 1
+        },
+        {
+          "key": "warm",
+          "minC": 8,
+          "maxC": 15,
+          "kind": "heat",
+          "budgetH": 12,
+          "drainMult": 1
+        },
+        {
+          "key": "hot",
+          "minC": 15,
+          "maxC": 25,
+          "kind": "heat",
+          "budgetH": 12,
+          "drainMult": 2,
+          "sharesBudgetWith": "warm"
+        },
+        {
+          "key": "extreme",
+          "minC": 25,
+          "maxC": 100,
+          "kind": "heat",
+          "budgetH": 0,
+          "drainMult": 4
+        }
+      ],
+      "mkt": {
+        "reportWindowH": 24,
+        "limitC": 8,
+        "applies": true
+      },
+      "qaMarginH": 24,
+      "packaging": {
+        "kind": "active_reefer",
+        "holdQualH": 96,
+        "holdQualAmbientC": 30
+      },
+      "sensor": {
+        "expectedIntervalMin": 10,
+        "silenceMultiplier": 3,
+        "escalateMultiplier": 6,
+        "spikeDeltaC": 3,
+        "stuckSamples": 6
+      },
+      "excursionOpen": {
+        "minConsecutiveSamples": 2,
+        "minSpanMin": 10
+      }
+    },
+    {
+      "profileKey": "mrna_spikevax_thawed",
+      "version": 1,
+      "name": "mRNA (Spikevax) \u2014 thawed",
+      "confidence": "partial",
+      "sourceTag": "Thawed 2-8 C up to 30 days; 8-25 C up to 24 h [partially verified]",
+      "minTempC": 2,
+      "maxTempC": 8,
+      "setpointC": 5,
+      "warningBandC": 1,
+      "freeze": {
+        "sensitive": true,
+        "thresholdC": -0.5,
+        "sustainedMin": 60
+      },
+      "bands": [
+        {
+          "key": "freeze",
+          "minC": -100,
+          "maxC": -0.5,
+          "kind": "freeze",
+          "budgetH": 0,
+          "drainMult": 4
+        },
+        {
+          "key": "cold",
+          "minC": -0.5,
+          "maxC": 2,
+          "kind": "cold",
+          "budgetH": 12,
+          "drainMult": 1
+        },
+        {
+          "key": "warm",
+          "minC": 8,
+          "maxC": 15,
+          "kind": "heat",
+          "budgetH": 24,
+          "drainMult": 1
+        },
+        {
+          "key": "hot",
+          "minC": 15,
+          "maxC": 25,
+          "kind": "heat",
+          "budgetH": 24,
+          "drainMult": 2,
+          "sharesBudgetWith": "warm"
+        },
+        {
+          "key": "extreme",
+          "minC": 25,
+          "maxC": 100,
+          "kind": "heat",
+          "budgetH": 0,
+          "drainMult": 4
+        }
+      ],
+      "mkt": {
+        "reportWindowH": 24,
+        "limitC": 8,
+        "applies": true
+      },
+      "qaMarginH": 24,
+      "packaging": {
+        "kind": "active_reefer",
+        "holdQualH": 96,
+        "holdQualAmbientC": 30
+      },
+      "sensor": {
+        "expectedIntervalMin": 10,
+        "silenceMultiplier": 3,
+        "escalateMultiplier": 6,
+        "spikeDeltaC": 3,
+        "stuckSamples": 6
+      },
+      "excursionOpen": {
+        "minConsecutiveSamples": 2,
+        "minSpanMin": 10
+      }
+    },
+    {
+      "profileKey": "frozen_minus20",
+      "version": 1,
+      "name": "Frozen -25 to -10 C",
+      "confidence": "mixed",
+      "sourceTag": "USP freezer range -25 to -10 C [verified]; budget above -10 C is ours [illustrative]",
+      "minTempC": -25,
+      "maxTempC": -10,
+      "setpointC": -20,
+      "warningBandC": 2,
+      "freeze": {
+        "sensitive": false,
+        "thresholdC": -100,
+        "sustainedMin": 999999
+      },
+      "bands": [
+        {
+          "key": "warm",
+          "minC": -10,
+          "maxC": 0,
+          "kind": "heat",
+          "budgetH": 4,
+          "drainMult": 1
+        },
+        {
+          "key": "hot",
+          "minC": 0,
+          "maxC": 15,
+          "kind": "heat",
+          "budgetH": 4,
+          "drainMult": 2,
+          "sharesBudgetWith": "warm"
+        },
+        {
+          "key": "extreme",
+          "minC": 15,
+          "maxC": 100,
+          "kind": "heat",
+          "budgetH": 0,
+          "drainMult": 4
+        }
+      ],
+      "mkt": {
+        "reportWindowH": 24,
+        "limitC": -10,
+        "applies": true
+      },
+      "qaMarginH": 12,
+      "packaging": {
+        "kind": "active_reefer",
+        "holdQualH": 48,
+        "holdQualAmbientC": 30
+      },
+      "sensor": {
+        "expectedIntervalMin": 10,
+        "silenceMultiplier": 3,
+        "escalateMultiplier": 6,
+        "spikeDeltaC": 3,
+        "stuckSamples": 6
+      },
+      "excursionOpen": {
+        "minConsecutiveSamples": 2,
+        "minSpanMin": 10
+      }
+    },
+    {
+      "profileKey": "produce_banana",
+      "version": 1,
+      "name": "Bananas 13.3-14.4 C",
+      "confidence": "mixed",
+      "sourceTag": "Chilling injury below ~13 C is a LOW-side excursion [verified, FAO]; budgets are ours [illustrative]",
+      "minTempC": 13.3,
+      "maxTempC": 14.4,
+      "setpointC": 13.8,
+      "warningBandC": 0.5,
+      "freeze": {
+        "sensitive": false,
+        "thresholdC": -100,
+        "sustainedMin": 999999
+      },
+      "bands": [
+        {
+          "key": "cold",
+          "minC": -10,
+          "maxC": 13.3,
+          "kind": "cold",
+          "budgetH": 8,
+          "drainMult": 2
+        },
+        {
+          "key": "warm",
+          "minC": 14.4,
+          "maxC": 20,
+          "kind": "heat",
+          "budgetH": 24,
+          "drainMult": 1
+        },
+        {
+          "key": "hot",
+          "minC": 20,
+          "maxC": 30,
+          "kind": "heat",
+          "budgetH": 24,
+          "drainMult": 2,
+          "sharesBudgetWith": "warm"
+        },
+        {
+          "key": "extreme",
+          "minC": 30,
+          "maxC": 100,
+          "kind": "heat",
+          "budgetH": 0,
+          "drainMult": 4
+        }
+      ],
+      "mkt": {
+        "reportWindowH": 72,
+        "limitC": 14.4,
+        "applies": true
+      },
+      "qaMarginH": 12,
+      "packaging": {
+        "kind": "active_reefer",
+        "holdQualH": 72,
+        "holdQualAmbientC": 32
+      },
+      "sensor": {
+        "expectedIntervalMin": 15,
+        "silenceMultiplier": 3,
+        "escalateMultiplier": 6,
+        "spikeDeltaC": 3,
+        "stuckSamples": 6
+      },
+      "excursionOpen": {
+        "minConsecutiveSamples": 2,
+        "minSpanMin": 10
+      }
+    }
+  ]
+}

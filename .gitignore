@@ -83,7 +83,11 @@ demo/*.avi
 demo/*.mkv
 
 # -- Docker volumes / local data ---------------------------------------------
-data/
+# data/ was ignored wholesale, which silently excluded src/backend/data —
+# the lane network, rule profiles and world generator. A clean clone could not
+# even run the tests. Ignore only local database dumps.
+/data/
+!src/backend/data/
 logs/
 *.log
 

@@ -1,0 +1,52 @@
+{
+  "_comment": "Network nodes. feeBasis defaults to container; vessel-basis fees (canal tolls) are amortised over amortiseOverTeu before they reach a single shipment. Coordinates are [lng, lat] (GeoJSON order). kind drives what the node can do: ports and airports are mode-change points, borders and canals add dwell, depots can stop the stability clock. dwellHours and feeUsd are illustrative unless a source is named in docs/regulatory-basis.md.",
+
+  "PNQ": { "name": "Pune", "country": "IN", "kind": "city", "coords": [73.856, 18.520], "coldStorage": true, "gdpCertified": true },
+  "BOM": { "name": "Mumbai", "country": "IN", "kind": "city", "coords": [72.878, 19.076] },
+  "INNSA": { "name": "Nhava Sheva (JNPT)", "country": "IN", "kind": "port", "coords": [72.949, 18.949], "dwellHours": 18, "feeUsd": 850, "coldStorage": true, "gdpCertified": true },
+  "BOMAIR": { "name": "Mumbai CSMIA cargo", "country": "IN", "kind": "airport", "coords": [72.868, 19.097], "dwellHours": 6, "feeUsd": 1200, "coldStorage": true, "gdpCertified": true },
+
+  "AEJEA": { "name": "Jebel Ali", "country": "AE", "kind": "port", "coords": [55.027, 25.011], "dwellHours": 12, "feeUsd": 700, "coldStorage": true, "gdpCertified": true },
+  "DXBAIR": { "name": "Dubai DWC cargo", "country": "AE", "kind": "airport", "coords": [55.161, 24.896], "dwellHours": 4, "feeUsd": 900, "coldStorage": true, "gdpCertified": true },
+
+  "SUEZ": { "name": "Suez Canal", "country": "EG", "kind": "canal", "coords": [32.350, 30.000], "dwellHours": 14, "feeUsd": 465000, "feeBasis": "vessel", "amortiseOverTeu": 14000 },
+  "BAB": { "name": "Bab-el-Mandeb", "country": "YE", "kind": "strait", "coords": [43.300, 12.600], "dwellHours": 0, "riskBase": 55 },
+  "COGH": { "name": "Cape of Good Hope", "country": "ZA", "kind": "waypoint", "coords": [18.470, -34.360], "dwellHours": 0 },
+
+  "DJIB": { "name": "Djibouti", "country": "DJ", "kind": "port", "coords": [43.145, 11.588], "dwellHours": 20, "feeUsd": 600 },
+  "KEMBA": { "name": "Mombasa", "country": "KE", "kind": "port", "coords": [39.658, -4.043], "dwellHours": 26, "feeUsd": 640, "coldStorage": true, "gdpCertified": false },
+  "KEMBAIR": { "name": "Mombasa Moi airport", "country": "KE", "kind": "airport", "coords": [39.594, -4.035], "dwellHours": 5, "feeUsd": 800 },
+  "NBOAIR": { "name": "Nairobi JKIA cargo", "country": "KE", "kind": "airport", "coords": [36.928, -1.319], "dwellHours": 5, "feeUsd": 850, "coldStorage": true, "gdpCertified": true },
+  "NBO": { "name": "Nairobi national store", "country": "KE", "kind": "depot", "coords": [36.817, -1.286], "coldStorage": true, "gdpCertified": true },
+  "NAKURU": { "name": "Nakuru regional store", "country": "KE", "kind": "depot", "coords": [36.067, -0.303], "coldStorage": true, "gdpCertified": true },
+  "MTITO": { "name": "Mtito Andei (A109 midpoint)", "country": "KE", "kind": "waypoint", "coords": [38.170, -2.690] },
+
+  "NLRTM": { "name": "Rotterdam", "country": "NL", "kind": "port", "coords": [4.480, 51.920], "dwellHours": 10, "feeUsd": 900, "coldStorage": true, "gdpCertified": true },
+  "GIB": { "name": "Strait of Gibraltar", "country": "ES", "kind": "strait", "coords": [-5.600, 35.950] },
+  "MALTA": { "name": "Malta Channel", "country": "MT", "kind": "waypoint", "coords": [14.500, 35.900] },
+
+  "CNSHA": { "name": "Shanghai", "country": "CN", "kind": "port", "coords": [121.470, 31.220], "dwellHours": 16, "feeUsd": 780, "coldStorage": true },
+  "PACMID": { "name": "North Pacific midpoint", "country": "--", "kind": "waypoint", "coords": [-175.000, 38.000] },
+  "USLAX": { "name": "Los Angeles / Long Beach", "country": "US", "kind": "port", "coords": [-118.190, 33.750], "dwellHours": 22, "feeUsd": 1100, "coldStorage": true, "gdpCertified": true },
+
+  "LAX": { "name": "Los Angeles", "country": "US", "kind": "city", "coords": [-118.244, 34.052], "coldStorage": true },
+  "SAN": { "name": "San Diego", "country": "US", "kind": "city", "coords": [-117.161, 32.716], "coldStorage": true, "gdpCertified": true },
+  "PHX": { "name": "Phoenix", "country": "US", "kind": "city", "coords": [-112.074, 33.448] },
+  "ABQ": { "name": "Albuquerque", "country": "US", "kind": "city", "coords": [-106.650, 35.084] },
+  "ELP": { "name": "El Paso", "country": "US", "kind": "city", "coords": [-106.487, 31.759] },
+  "SLC": { "name": "Salt Lake City", "country": "US", "kind": "city", "coords": [-111.891, 40.761], "coldStorage": true },
+  "DEN": { "name": "Denver", "country": "US", "kind": "city", "coords": [-104.991, 39.740], "coldStorage": true, "gdpCertified": true },
+  "OMA": { "name": "Omaha", "country": "US", "kind": "city", "coords": [-95.934, 41.257] },
+  "DSM": { "name": "Des Moines", "country": "US", "kind": "city", "coords": [-93.620, 41.591] },
+  "MCI": { "name": "Kansas City", "country": "US", "kind": "city", "coords": [-94.579, 39.100] },
+  "ORD": { "name": "Chicago", "country": "US", "kind": "city", "coords": [-87.630, 41.878], "coldStorage": true, "gdpCertified": true },
+  "CLE": { "name": "Cleveland", "country": "US", "kind": "city", "coords": [-81.694, 41.499] },
+  "ATL": { "name": "Atlanta", "country": "US", "kind": "city", "coords": [-84.388, 33.749], "coldStorage": true },
+  "GNV": { "name": "Gainesville", "country": "US", "kind": "city", "coords": [-82.325, 29.652] },
+  "MIA": { "name": "Miami", "country": "US", "kind": "port", "coords": [-80.191, 25.761], "dwellHours": 14, "feeUsd": 720, "coldStorage": true, "gdpCertified": true },
+
+  "CARIB": { "name": "Caribbean transit", "country": "--", "kind": "waypoint", "coords": [-68.000, 14.000] },
+  "RECIFE": { "name": "Recife approach", "country": "BR", "kind": "waypoint", "coords": [-34.900, -8.050] },
+  "BRSSZ": { "name": "Santos", "country": "BR", "kind": "port", "coords": [-46.333, -23.960], "dwellHours": 24, "feeUsd": 680, "coldStorage": true },
+  "SAO": { "name": "Sao Paulo", "country": "BR", "kind": "city", "coords": [-46.633, -23.550], "coldStorage": true }
+}
