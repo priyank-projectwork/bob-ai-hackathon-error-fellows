@@ -1,0 +1,13 @@
+{
+  "_comment": "Hook config per bob.ibm.com/docs/ide/configuration. Every LIFECLOCK MCP call Bob makes is posted to the hash-chained audit trail. The stdin payload shape was not verifiable from public docs, so scripts/bob-audit-hook.js reads it defensively and never blocks a tool call.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "^mcp__lifeclock",
+        "hooks": [
+          { "type": "command", "command": "node scripts/bob-audit-hook.js" }
+        ]
+      }
+    ]
+  }
+}

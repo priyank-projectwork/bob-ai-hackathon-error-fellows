@@ -3,7 +3,7 @@
 const { StreamableHTTPServerTransport } = require("@modelcontextprotocol/sdk/server/streamableHttp.js");
 const { buildMcpServer } = require("./server.js");
 
-function mountMcp(app) {
+function mountMcp(app, { world } = {}) {
   // GET /mcp — browser health check (also used by Bob to detect the endpoint)
   app.get("/mcp", (req, res) => {
     res.json({ status: "ok", transport: "streamable-http" });
@@ -21,7 +21,7 @@ function mountMcp(app) {
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // stateless mode
     });
-    const mcpServer = buildMcpServer();
+    const mcpServer = buildMcpServer({ world });
     try {
       await mcpServer.connect(transport);
       await transport.handleRequest(req, res, req.body);

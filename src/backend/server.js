@@ -793,7 +793,7 @@ app.post("/api/v1/excursions/:id/disposition", requireDb,
   }
 });
 
-require("./mcp/mount").mountMcp(app);
+require("./mcp/mount").mountMcp(app, { world });
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Health check ─────────────────────────────────────────────────────────────

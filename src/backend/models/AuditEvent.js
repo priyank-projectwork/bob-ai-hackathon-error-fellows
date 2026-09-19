@@ -39,6 +39,12 @@ const auditEventSchema = new mongoose.Schema({
   eventType: { type: String },
 
   createdAt: { type: Date, default: Date.now },
+}, {
+  // Mongoose strips empty objects on save by default (minimize: true). That
+  // silently turned a stored payload of {action, args:{}} into {action}, so
+  // the hash recomputed on read no longer matched what was written and the
+  // chain reported itself tampered with. Keep every key exactly as hashed.
+  minimize: false,
 });
 
 module.exports = mongoose.model("AuditEvent", auditEventSchema);

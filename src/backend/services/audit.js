@@ -45,7 +45,9 @@ async function record({ actor, action, entityType, entityId, outcome, payload, a
       entityType,
       entityId,
       outcome,
-      payload,
+      // Normalise an empty payload to null rather than {}: belt and braces
+      // against any store that treats the two as interchangeable.
+      payload: payload && Object.keys(payload).length ? payload : null,
       prevHash: last ? last.hash : GENESIS,
     });
     await AuditEvent.create({
