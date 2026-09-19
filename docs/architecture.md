@@ -1,158 +1,138 @@
 # Architecture
 
-## System Architecture
+## The shape of it
 
 ```mermaid
 graph TD
-    subgraph "Presentation Layer"
-        UI[Next.js 16 Dashboard<br/>React 19 + TypeScript]
-        MAP[Leaflet Live Map<br/>Disruption Zones + Shipments]
-        CHAT[AI Copilot Chat<br/>Floating Widget]
-        ANALYTICS[Historical Analytics<br/>Recharts Temperature Chart]
+    subgraph Clients
+      UI["Next.js dashboard<br/>map · triage · audit"]
+      BOB["IBM Bob<br/>Control Tower mode"]
+      IOT["Real telemetry<br/>POST /ingest/sensor"]
     end
 
-    subgraph "Real-Time Transport"
-        WS[Socket.IO WebSocket<br/>temperatureUpdate<br/>telemetry.alert<br/>recommendation.created<br/>action.completed]
+    subgraph Backend["Express 5 — one process"]
+      API["REST + Socket.IO"]
+      MCP["MCP over Streamable HTTP<br/>POST /mcp · 12 tools"]
+      POLICY["policy.js<br/>read · propose · commit"]
+      WORLD["Simulated world<br/>clock · motion · telemetry"]
+      PIPE["Cold-chain pipeline"]
+      AUDIT["Hash-chained audit"]
     end
 
-    subgraph "API Layer — Node.js Express 5"
-        API_CC[GET /api/v1/command-center<br/>KPIs + Alerts + Recommendations]
-        API_LOC[GET /api/locations<br/>Shipments + Fleets + Disruptions]
-        API_DIS[POST /api/disruptions<br/>Create Disruption Event]
-        API_REC[POST /api/v1/recommendations/:id/approve<br/>POST .../reject]
-        API_CHAT[POST /api/v1/chat<br/>AI Copilot Query]
-        API_TEMP[GET /api/analytics/temperature<br/>Historical Sensor Data]
+    subgraph Engines["Pure functions — no I/O, no wall clock, 165 tests"]
+      CLOCK["viabilityClock<br/>two clocks · feasibility · P(loss)"]
+      REG["regulatoryEngine<br/>matrix · freeze · MKT · disposition"]
+      PRED["breachPredictor<br/>Newton fit"]
+      SANITY["sensorSanity · rootCause"]
+      GEO["disruptionGeometry<br/>remaining-path impact"]
+      ROUTE["graphRouter · landedCost"]
+      FLEET["fleetMatcher · utilisation"]
+      MOTION["motion<br/>great-circle · antimeridian-safe"]
     end
 
-    subgraph "Event Bus — Node EventEmitter"
-        EB_DIS[disruption.created]
-        EB_SENS[sensor.reading.received]
-    end
+    AI["watsonx.ai<br/>explains only"]
+    DB[("MongoDB<br/>or in-memory")]
 
-    subgraph "Deterministic Engines"
-        IE[Impact Engine<br/>Haversine Geospatial<br/>Intersection]
-        RE[Risk Engine<br/>6-Factor Weighted<br/>Score 0-100]
-        CCE[Cold Chain Engine<br/>Excursion State Machine<br/>Open/Update/Resolve]
-        RO[Route Optimizer<br/>Graph-based Candidate<br/>Generation + Ranking]
-        FM[Fleet Matcher<br/>5-Factor Compatibility<br/>Scoring]
-    end
-
-    subgraph "AI Layer — IBM watsonx.ai"
-        WX_EXC[classifyExcursion<br/>GDP Severity Classification<br/>Minor/Major/Critical]
-        WX_RER[generateReroutingStrategy<br/>Disruption Response Plan]
-        WX_CHAT[processChatQuery<br/>Operations Copilot<br/>with System Context]
-    end
-
-    subgraph "Data Layer — MongoDB"
-        DB_SHIP[Shipment]
-        DB_FLEET[FleetAsset]
-        DB_SENS[SensorLog]
-        DB_EXC[Excursion]
-        DB_ALERT[Alert]
-        DB_REC[Recommendation]
-        DB_AUDIT[AuditEvent]
-        DB_RULE[RuleProfile]
-        DB_DIS[Disruption]
-        DB_LEG[RouteLeg]
-    end
-
-    subgraph "IoT Simulator"
-        SIM[5-second Interval<br/>Temperature Generator<br/>25% Spike Probability]
-    end
-
-    UI --> API_CC
-    UI --> API_LOC
-    UI --> API_DIS
-    UI --> API_REC
-    MAP --> API_LOC
-    CHAT --> API_CHAT
-    ANALYTICS --> API_TEMP
-    UI <-->|WebSocket| WS
-
-    API_DIS --> EB_DIS
-    SIM --> EB_SENS
-
-    EB_DIS --> IE
-    IE --> RE
-    RE --> RO
-    RO --> FM
-    FM --> DB_REC
-    FM --> WX_RER
-
-    EB_SENS --> CCE
-    CCE --> DB_EXC
-    CCE --> DB_ALERT
-    CCE --> WX_EXC
-
-    API_CHAT --> WX_CHAT
-
-    IE --> DB_SHIP
-    RE --> DB_SHIP
-    CCE --> DB_SENS
-    API_REC --> DB_FLEET
-    API_REC --> DB_AUDIT
-
-    DB_SHIP --- DB_LEG
-    DB_SHIP --- DB_RULE
-    DB_SHIP --- DB_SENS
+    UI --> API
+    BOB --> MCP
+    IOT --> API
+    MCP --> POLICY
+    API --> POLICY
+    POLICY -->|commit denied for agents| AUDIT
+    API --> WORLD
+    WORLD --> MOTION
+    WORLD --> PIPE
+    PIPE --> SANITY
+    PIPE --> REG
+    PIPE --> CLOCK
+    PIPE --> PRED
+    API --> GEO
+    API --> ROUTE
+    API --> FLEET
+    ROUTE --> CLOCK
+    FLEET --> CLOCK
+    PIPE -.->|after the decision| AI
+    API --> DB
+    AUDIT --> DB
 ```
 
 ## Components
 
-| Component | Technology | Responsibility |
+| Component | File | Responsibility |
 |---|---|---|
-| Frontend Dashboard | Next.js 16 + React 19 + TypeScript | Main operator UI, KPI cards, action center, alerts feed, sensor feed |
-| Live Map | React-Leaflet + Leaflet | Geospatial view of shipments, idle fleets, disruption zones |
-| AI Chat Widget | React + Socket.IO client | Floating copilot chat with streaming typing indicator |
-| Historical Analytics | Recharts | Hourly average temperature line chart from seeded sensor logs |
-| Backend API | Node.js + Express 5 | REST API + Socket.IO server + internal event bus |
-| Impact Engine | `engines/impactEngine.js` | Haversine geospatial intersection — disruption radius vs shipment route legs |
-| Risk Engine | `engines/riskEngine.js` | 6-factor weighted risk score (0–100) with named driver explanations |
-| Cold Chain Engine | `engines/coldChainEngine.js` | Deterministic excursion state machine: Open/Update/Resolve |
-| Route Optimizer | `engines/routeOptimizer.js` | Graph-based candidate route generation ranked by cost/time/risk |
-| Fleet Matcher | `engines/fleetMatcher.js` | 5-factor idle asset compatibility scoring with hard cold-chain filter |
-| AI Service | `aiService.js` + watsonx.ai SDK | Three watsonx.ai call types: excursion classify, rerouting strategy, chat |
-| IoT Simulator | `server.js startSimulation()` | 5-second interval mock sensor readings with 25% spike probability |
-| MongoDB | Mongoose ODM | 10 domain entity schemas with full relational references |
+| Viability clock | `engines/viabilityClock.js` | Schedule vs stability margin, which binds, feasibility of an option, P(loss) and money at risk |
+| Regulatory engine | `engines/regulatoryEngine.js` | Severity matrix, freeze override, cumulative budgets, MKT, disposition, required signer |
+| Breach predictor | `engines/breachPredictor.js` | Newton's-law fit over recent readings; warns before the limit is crossed |
+| Sensor sanity | `engines/sensorSanity.js` | Spike filtering, silence, stuck sensors, out-of-order |
+| Root cause | `engines/rootCause.js` | Door / compressor / power / ambient signatures |
+| Disruption geometry | `engines/disruptionGeometry.js` | Point-to-segment against the **remaining** path; hours-to-zone; tariff shocks |
+| Graph router | `engines/graphRouter.js` | Dijkstra + Yen k-shortest, blocked and delayed nodes |
+| Landed cost | `engines/landedCost.js` | Freight + fees + customs dwell + duty + expected spoilage |
+| Fleet matcher | `engines/fleetMatcher.js` | Hard filters, 0–100 score, global assignment, utilisation |
+| Motion | `engines/motion.js` | Great-circle motion, antimeridian-safe, remaining path |
+| Audit chain | `engines/auditChain.js` | SHA-256 chain over canonical JSON |
+| Policy | `engines/policy.js` | read / propose / commit; agents cannot commit |
+| Simulated world | `sim/` | Clock, motion loop, position-driven telemetry, record and replay |
+| Cold-chain pipeline | `services/coldChain.js` | Ties the engines together per reading |
+| MCP surface | `mcp/` | 12 tools over Streamable HTTP, in-process |
 
-## Data Flow
+## Three rules the codebase holds to
 
-### Disruption Event Flow
-1. Operator clicks "LA Port Strike" on dashboard → `POST /api/disruptions`
-2. Disruption document created in MongoDB; `disruption.created` event emitted on internal bus
-3. Impact Engine fetches all `In Transit` shipments, runs Haversine intersection vs disruption geometry
-4. Impacted shipments: Risk Engine computes 6-factor score; shipment riskScore updated in DB
-5. Route Optimizer generates ranked alternatives; Fleet Matcher scores idle reefer trucks
-6. Recommendation document saved; `recommendation.created` Socket.IO event pushes to all connected UIs
-7. UI Action Center updates live; operator sees recommendation with rationale
+**1. Engines are pure.** No database, no network, no `Date.now()`. Every entry
+point that needs the time takes `nowMs`. This is what makes replay possible and
+the tests deterministic — and it is greppable:
 
-### Cold-Chain Telemetry Flow
-1. Simulator fires every 5 seconds; 25% chance of temperature spike (>8°C)
-2. SensorLog saved to MongoDB; `sensor.reading.received` event emitted
-3. Cold Chain Engine loads shipment's RuleProfile; evaluates temperature against min/max/warningBand
-4. If excursion detected: Excursion document opened; Alert created; `telemetry.alert` Socket.IO event fired
-5. watsonx.ai called with shipment ID + temperature → GDP severity classification + disposition instruction
-6. If reading returns to safe range: Excursion resolved; `excursion.resolved` event emitted
+```bash
+grep -rn "Date.now\|require(\"mongoose\")" src/backend/engines/*.js   # no matches
+```
 
-### Action Approval Flow
-1. Operator clicks "Approve & Execute" on recommendation
-2. `POST /api/v1/recommendations/:id/approve` → Recommendation status = "Approved"
-3. Fleet asset status updated to "In Transit" in MongoDB
-4. AuditEvent created with actor, action type, entity reference, and timestamp
-5. `action.completed` Socket.IO event removes recommendation from all connected UIs
+**2. The model never decides.** Severity, disposition, the clock and the option
+ranking are computed. watsonx is asked afterwards to phrase the conclusion. Pull
+the credentials and every number is identical.
 
-## Security Considerations
+**3. An agent may propose; only a human commits.** Enforced in one place
+(`policy.js`), checked on both the REST and MCP surfaces, and a refusal is
+appended to the hash chain rather than silently returned.
 
-- API keys (`WATSONX_API_KEY`, `WATSONX_PROJECT_ID`) stored in environment variables, never committed to git
-- `.env` is in `.gitignore`; `.env.example` provides template with dummy values
-- CORS configured on backend; Socket.IO allows all origins for demo purposes
-- watsonx.ai model prompts treat retrieved data as untrusted and explicitly instruct the model not to fabricate facts
+## Data flow: a reading arrives
 
-## Scalability Notes
+```
+POST /ingest/sensor  (or the simulated world generates one from position + reefer state)
+   → sensorSanity     is this believable? spike, silence, stuck, out-of-order
+   → band             which band of the rule profile, and for how long
+   → regulatoryEngine severity from magnitude × duration, freeze override, MKT
+   → viabilityClock   both clocks, which binds, money and doses at risk
+   → breachPredictor  Newton fit — will it breach, and when
+   → alert            coalesced: one open alert per problem, updated not duplicated
+   → socket           lifeclock.updated · breach.predicted · telemetry.alert
+```
 
-For a production system:
-- Replace Node.js `EventEmitter` with Redis + BullMQ for durable, distributed event processing
-- Replace local MongoDB with a managed instance (IBM Cloudant, MongoDB Atlas)
-- Add PostGIS to the data layer for production-grade geospatial route intersection
-- The frontend is stateless and can be horizontally scaled behind a CDN
-- Each engine (Impact, Risk, Cold Chain) can be extracted as a separate worker process
+## Data flow: Bob is refused
+
+```
+Bob → POST /mcp  tools/call approve_recommendation
+   → policy.can({sub:"bob", roles:["operator-agent"]}, "approve_recommendation")
+   → commit + agent  →  DENIED
+   → auditService.recordDenial()   appended to the hash chain, actor "bob"
+   → Bob receives a readable explanation, not just an error
+   → GET /api/v1/audit         shows outcome "denied"
+   → GET /api/v1/audit/verify  confirms the chain is intact
+```
+
+## Running it
+
+One process. `npm start` in `src/backend` boots with **no API key, no MongoDB
+and no network** — it falls back to templated explanations, an in-memory store
+which it seeds itself, and serves `/health`. `GET /health` reports
+`build: "lifeclock-r2"` so it is obvious whether a server is current.
+
+## Scaling, honestly
+
+Today: one instance, in-process event bus, seeded world. The seams that matter
+are already in place — pure engines, a thin bus interface, an actor shaped like
+OIDC claims, versioned rule profiles, GeoJSON coordinates.
+
+What would come next, in order: Redis so Socket.IO works across instances, a
+durable job queue for the AI calls, real sign-in, an `orgId` scope on every
+query, then splitting sensor ingest behind a queue. None of it is built, and
+`docs/known-limitations.md` says so.
