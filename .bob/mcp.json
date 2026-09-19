@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "lifeclock": {
+      "type": "streamable-http",
+      "url": "http://127.0.0.1:4000/mcp"
+    },
     "coldchain-copilot": {
       "command": "node",
       "args": ["D:/MCA/IBM_hackathon/src/mcp-server/build/index.js"],

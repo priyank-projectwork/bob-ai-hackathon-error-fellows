@@ -498,6 +498,23 @@ mongoose.connection.once("open", () => {
   startSimulation();
 });
 
+// ── MCP (SDK Streamable HTTP transport) ─────────────────────────────────────
+require("./mcp/mount").mountMcp(app);
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Global error handler ─────────────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  if (req.path === "/mcp") {
+    return res.status(400).json({
+      jsonrpc: "2.0", id: null,
+      error: { code: -32700, message: "Parse error" }
+    });
+  }
+  console.error(err);
+  res.status(500).json({ error: "Internal server error" });
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
 server.listen(4000, () => {
   console.log("🚀 Server running on http://127.0.0.1:4000");
 });

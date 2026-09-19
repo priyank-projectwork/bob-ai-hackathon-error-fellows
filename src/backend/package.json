@@ -13,6 +13,7 @@
   "type": "commonjs",
   "dependencies": {
     "@ibm-cloud/watsonx-ai": "^1.7.16",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
