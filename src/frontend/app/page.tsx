@@ -57,7 +57,18 @@ interface RecommendationData {
   status?: "Pending" | "Approved" | "Rejected" | "Superseded";
   evidence?: {
     alternateRoute?: { route: string; costDelta: number; timeDeltaHours: number; riskScore: number; via?: string[]; modes?: string[] };
-    fleetMatch?: { fleet: { assetId: string; locationName?: string }; matchScore: number; distanceKm: number };
+    // fleetMatcher v2 returns { assetId, asset, matchScore, ... }. The old one
+    // wrapped it as { fleet: {...} }. Both shapes can be in the database, so
+    // both are accepted and normalised at the point of use.
+    fleetMatch?: {
+      assetId?: string;
+      asset?: { assetId?: string; locationName?: string };
+      fleet?: { assetId: string; locationName?: string };
+      matchScore: number;
+      distanceKm: number;
+      etaHours?: number;
+      why?: string;
+    };
   };
 }
 
@@ -366,9 +377,16 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2 1M13 16l2 1M13 16V9a1 1 0 011-1h2.586a1 1 0 01.707.293l3 3a1 1 0 01.293.707V16"/>
               </svg>
               <span className="text-[8px] font-bold text-cyan-400 uppercase tracking-widest">Fleet Dispatched</span>
-              <span className="text-[9px] text-cyan-300/80 font-semibold">{fleet.fleet.assetId}</span>
-              {fleet.fleet.locationName && (
-                <span className="text-[9px] lc-ink-3 truncate flex-1">{fleet.fleet.locationName}</span>
+              <span className="text-[9px] text-cyan-300/80 font-semibold">
+                {fleet.assetId ?? fleet.asset?.assetId ?? fleet.fleet?.assetId ?? "—"}
+              </span>
+              {(fleet.asset?.locationName ?? fleet.fleet?.locationName) && (
+                <span className="text-[9px] lc-ink-3 truncate flex-1">
+                  {fleet.asset?.locationName ?? fleet.fleet?.locationName}
+                </span>
+              )}
+              {typeof fleet.matchScore === "number" && (
+                <span className="text-[9px] text-cyan-300/70 flex-shrink-0">match {fleet.matchScore}/100</span>
               )}
               <span className="text-[9px] lc-ink-3 flex-shrink-0">{fleet.distanceKm}km</span>
             </div>
@@ -380,8 +398,14 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
       {fleet && !alt && (
         <div className="mx-3.5 mb-2 rounded-lg border lc-hair px-2.5 py-1.5 bg-cyan-950/10 flex items-center gap-2">
           <span className="text-[8px] font-bold text-cyan-400 bg-cyan-500/10 px-1 py-0.5 rounded flex-shrink-0">FLEET</span>
-          <span className="text-[9px] text-cyan-300/80 font-semibold">{fleet.fleet.assetId}</span>
-          {fleet.fleet.locationName && <span className="text-[9px] lc-ink-3 truncate">{fleet.fleet.locationName}</span>}
+          <span className="text-[9px] text-cyan-300/80 font-semibold">
+            {fleet.assetId ?? fleet.asset?.assetId ?? fleet.fleet?.assetId ?? "—"}
+          </span>
+          {(fleet.asset?.locationName ?? fleet.fleet?.locationName) && (
+            <span className="text-[9px] lc-ink-3 truncate">
+              {fleet.asset?.locationName ?? fleet.fleet?.locationName}
+            </span>
+          )}
           <span className="text-[9px] lc-ink-3 ml-auto flex-shrink-0">{fleet.distanceKm}km</span>
         </div>
       )}
@@ -770,13 +794,14 @@ export default function Dashboard() {
     // Fleet dispatch line: idle truck → shipment's current position
     const fleetMatch = rec.evidence?.fleetMatch;
     let fleetLine: { from: [number,number]; to: [number,number]; assetId: string } | null = null;
-    if (fleetMatch?.fleet) {
-      const fleetObj = fleets.find(f => f.assetId === fleetMatch.fleet.assetId);
+    const fleetAssetId = fleetMatch?.assetId ?? fleetMatch?.asset?.assetId ?? fleetMatch?.fleet?.assetId;
+    if (fleetAssetId) {
+      const fleetObj = fleets.find(f => f.assetId === fleetAssetId);
       if (fleetObj?.currentLocation && ship?.currentLocation) {
         fleetLine = {
           from: [fleetObj.currentLocation.lat, fleetObj.currentLocation.lng],
           to:   [ship.currentLocation.lat, ship.currentLocation.lng],
-          assetId: fleetMatch.fleet.assetId,
+          assetId: fleetAssetId,
         };
       }
     }
@@ -807,11 +832,13 @@ export default function Dashboard() {
       }
       // spotlight the fleet truck on the map too
       const fleetMatch = rec.evidence?.fleetMatch;
-      if (fleetMatch?.fleet) {
-        const fleetObj = fleets.find(f => f.assetId === fleetMatch.fleet.assetId);
+      const spotlightAssetId =
+        fleetMatch?.assetId ?? fleetMatch?.asset?.assetId ?? fleetMatch?.fleet?.assetId;
+      if (spotlightAssetId) {
+        const fleetObj = fleets.find(f => f.assetId === spotlightAssetId);
         if (fleetObj?.currentLocation) {
           const { lat, lng } = fleetObj.currentLocation;
-          setMapSpotlight({ lat, lng, label: fleetMatch.fleet.assetId, type: "fleet" });
+          setMapSpotlight({ lat, lng, label: spotlightAssetId, type: "fleet" });
         }
       }
     } catch (e) { console.error("approve failed", e); }

@@ -122,7 +122,31 @@ eventBus.on("disruption.created", async (disruption) => {
             : alternatives[0].rationale + (selectedFleet ? ` Matches idle asset ${selectedFleet.assetId} (score ${selectedFleet.matchScore}/100, ${selectedFleet.why}).` : ""),
           evidence: {
             alternateRoute: alternatives[0],
-            fleetMatch: selectedFleet || null,
+            // Normalised shape. fleetMatcher v2 returns { assetId, asset, ... };
+            // the old one wrapped it as { fleet: {...} }. Write both so cards
+            // rendered from either generation of the data keep working, and
+            // carry the explainable factors the matcher produces.
+            fleetMatch: selectedFleet
+              ? {
+                  assetId: selectedFleet.assetId,
+                  asset: {
+                    assetId: selectedFleet.assetId,
+                    locationName: selectedFleet.asset?.locationName ?? null,
+                    type: selectedFleet.asset?.type ?? null,
+                  },
+                  fleet: {
+                    assetId: selectedFleet.assetId,
+                    locationName: selectedFleet.asset?.locationName ?? null,
+                  },
+                  matchScore: selectedFleet.matchScore,
+                  distanceKm: selectedFleet.distanceKm,
+                  etaHours: selectedFleet.etaHours,
+                  preCoolHours: selectedFleet.preCoolHours,
+                  deadheadUsd: selectedFleet.deadheadUsd,
+                  why: selectedFleet.why,
+                  factors: selectedFleet.factors,
+                }
+              : null,
             aiStrategy
           }
         });
