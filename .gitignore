@@ -104,3 +104,6 @@ bob-task-*.json
 # Scratch/debug scripts
 _*_test.js
 _*_test.sh
+
+# Office lock files
+~$*
