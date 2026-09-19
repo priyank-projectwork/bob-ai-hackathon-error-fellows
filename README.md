@@ -124,31 +124,38 @@ demo/
 
 ## ⚡ How to Run
 
-See [`docs/setup-guide.md`](docs/setup-guide.md) for full instructions.
+Runs with **no API key, no MongoDB and no internet**. Those add capability;
+they are not prerequisites. Full detail in [`docs/setup-guide.md`](docs/setup-guide.md).
 
 ```bash
-# Prerequisites: Node.js 20+, MongoDB 7 running on port 27017
+# Prerequisite: Node.js 18, 20 or 22
 
-# 1. Clone the repo
 git clone https://github.com/priyank-projectwork/bob-ai-hackathon-error-fellows.git
 cd bob-ai-hackathon-error-fellows
 
-# 2. Configure environment
-cp src/.env.example src/backend/.env
-# Edit src/backend/.env — add WATSONX_API_KEY, WATSONX_PROJECT_ID
-
-# 3. Install & seed backend
+# Terminal 1 — backend (seeds itself if MongoDB is absent)
 cd src/backend
 npm install
-npm run seed
-
-# 4. Start backend (new terminal)
 npm start
 
-# 5. Install & start frontend (new terminal)
-cd ../frontend
+# Terminal 2 — frontend
+cd src/frontend
 npm install
 npm run dev
+```
+
+Confirm you are on the current build — `curl http://localhost:4000/health`
+should report `"build": "lifeclock-r2"`.
+
+With MongoDB running, `npm run seed` first for a world that persists.
+With watsonx credentials in `src/backend/.env`, explanations come from the
+model instead of templates — **every number is identical either way**.
+
+```bash
+npm test               # 165 tests
+npm run record         # drive the real engines, write a recording
+npm run record:verify  # confirm the recording matches its hash
+npm run demo           # replay it, no database or network needed
 ```
 
 The dashboard is available at **http://localhost:3000**
@@ -168,14 +175,48 @@ The dashboard is available at **http://localhost:3000**
 
 ## ⚠️ Known Limitations
 
-- Authentication is mocked — single hardcoded Operations Manager role, not production-ready
-- MongoDB runs locally — no cloud deployment for this submission
-- Route graph is a demo network (5 US hubs); production would integrate a live routing engine
-- IoT sensor stream is simulated at 5-second intervals; production would use an MQTT gateway
-- Demo video shows local execution only
+Kept deliberately specific — see [`docs/known-limitations.md`](docs/known-limitations.md)
+for the full list, including which numbers are illustrative.
+
+- **Authentication is a single named operator**, not an identity provider.
+  Custody is recorded as data; multiple organisations and per-party views are not built.
+- **The audit chain is tamper-evident, not a signature.** Designed toward
+  21 CFR Part 11 principles; not validated, not a compliance claim.
+- **Duty rates and customs dwell are illustrative.** The direction is real —
+  vaccines are duty-free into many markets — but no rate should be quoted.
+- **Approve records a signed decision but does not yet re-route the world**;
+  the map does not redraw on approval.
+- **Delay does not propagate between legs.** Shipments have real multi-leg
+  routes, but missed-connection cascade is not implemented.
+- **No live weather or news feed.** `parse_headline` structures a headline you
+  paste; nothing polls externally.
+- **No deployment.** `demo/live-demo-url.txt` says `NOT DEPLOYED`.
 
 ---
 
 ## 🏅 What We're Most Proud Of
 
-The strict separation between deterministic computation and generative AI is the core architectural achievement. Every numerical fact shown to operators — risk scores (6-factor weighted model), excursion severity, route costs, fleet match scores — is produced by a deterministic, testable engine. watsonx.ai is used exclusively as an explainer and orchestrator: it classifies cold-chain severity against GDP guidelines, generates rationale for recommendations, and answers natural-language queries grounded in live system state. This means the system is **correct-by-design**, not hallucination-dependent — exactly the production-grade pattern described in the architecture specification as "the differentiator."
+**The two-clock model, and that it is a hard constraint rather than a weight.**
+
+A cold shipment has two deadlines: when it is late, and when it is dead. Most
+systems track the first. LIFECLOCK computes both, says which one binds, and
+**rejects any route that outlasts the cargo** — shown struck through with the
+shortfall rather than quietly dropped. A soft weight would let a fast, cheap
+route that spoils the cargo win; a constraint cannot.
+
+That split produces answers a cost-and-time router cannot reach. Holding a
+vessel on ship power freezes the stability clock while the schedule clock keeps
+running, so *waiting* can beat *rerouting*.
+
+Two things make it checkable rather than claimed:
+
+- **The engines are pure.** No database, no network, no wall-clock reads —
+  `grep -rn "Date.now" src/backend/engines/*.js` returns nothing. 165 tests.
+  Severity comes from a rule matrix, not a prompt; pull the watsonx credentials
+  and every number on screen is identical.
+- **An agent may propose; only a human commits.** IBM Bob operates the tower
+  through 12 MCP tools and is **refused** when it tries to approve a decision —
+  with the refusal written into a hash chain you can verify on screen.
+
+The honest part: the backend is stronger than the front end, and
+`docs/known-limitations.md` says exactly where.
