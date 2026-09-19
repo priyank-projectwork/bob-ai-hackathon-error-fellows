@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, TileLayer, Polyline, CircleMarker, Circle, Tooltip, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Polyline, CircleMarker, Circle, Marker, Tooltip, useMap } from "react-leaflet";
+import { shipmentPin } from "./mapIcons";
 import "leaflet/dist/leaflet.css";
 import { api, API, type MovingShipment, type LifeClock, type ClockState } from "@/lib/api";
 
@@ -161,45 +162,42 @@ export default function MovingMap({
         {shipments.map((s) => {
           const clock = clocks[s.shipmentId];
           const state: ClockState = clock?.state ?? "green";
-          const colour = STATE_COLOUR[state];
           const isSelected = s.shipmentId === selected;
           const [lng, lat] = s.position!;
-          // Only shipments in trouble pulse, and the worse it is the faster.
-          const pulse =
-            state === "black" ? "lc-pulse-black"
-            : state === "red" ? "lc-pulse-red"
-            : state === "amber" ? "lc-pulse-amber"
-            : "";
           return (
-            <CircleMarker
+            <Marker
               key={s.shipmentId}
-              center={[lat, lng]}
-              radius={isSelected ? 9 : state === "green" ? 5 : 7}
-              className={`lc-marker ${pulse}`}
-              pathOptions={{
-                color: isSelected ? "#ffffff" : colour,
-                weight: isSelected ? 3 : 1.5,
-                fillColor: colour,
-                fillOpacity: s.halted ? 0.35 : 0.85,
-              }}
+              position={[lat, lng]}
+              icon={shipmentPin({
+                mode: s.transportMode ?? "Road",
+                state,
+                bearing: s.bearing ?? 0,
+                selected: isSelected,
+                halted: s.halted,
+                label: isSelected ? s.shipmentId : undefined,
+              })}
               eventHandlers={{ click: () => onSelect?.(s.shipmentId) }}
             >
-              <Tooltip direction="top" offset={[0, -6]}>
-                <div className="text-xs">
+              <Tooltip direction="top" offset={[0, -18]}>
+                <div className="text-xs leading-relaxed">
                   <div className="font-mono font-semibold">{s.shipmentId}</div>
                   <div>
                     {s.transportMode} · {Math.round((s.fractionDone ?? 0) * 100)}% of route
                   </div>
                   {clock && (
                     <div>
-                      life clock {clock.lifeClockH.toFixed(1)} h ({clock.bindingConstraint})
+                      life clock <strong>{clock.lifeClockH.toFixed(1)} h</strong> ({clock.bindingConstraint})
                     </div>
                   )}
-                  {s.tempC != null && <div>{s.tempC.toFixed(1)} °C · {s.unitMode}</div>}
+                  {s.tempC != null && (
+                    <div>
+                      {s.tempC.toFixed(1)} °C · {s.unitMode}
+                    </div>
+                  )}
                   {s.halted && <div className="font-medium">held</div>}
                 </div>
               </Tooltip>
-            </CircleMarker>
+            </Marker>
           );
         })}
 

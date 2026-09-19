@@ -243,3 +243,46 @@ body {
     transition: none !important;
   }
 }
+
+/* ── Map pins ───────────────────────────────────────────────────────────── */
+
+/* The sonar ring from the original map, kept because it was the best thing on
+   it — but now reserved for shipments whose life clock is actually running
+   down, so it signals rather than decorates. */
+@keyframes lcPinSonar {
+  0%   { transform: scale(0.85); opacity: 0.75; }
+  70%  { transform: scale(2.4);  opacity: 0; }
+  100% { transform: scale(2.4);  opacity: 0; }
+}
+
+.lc-pin { transition: transform 160ms ease; }
+.lc-pin:hover { transform: scale(1.12); z-index: 1000; }
+.lc-pin-selected { z-index: 1200; }
+
+/* Leaflet moves markers with transforms; easing that makes a poll-driven
+   position update read as travel rather than teleporting. */
+.leaflet-marker-icon { transition: transform 1.8s linear; }
+.leaflet-marker-icon.leaflet-zoom-animated { transition: none; }
+
+.lc-map .leaflet-container { background: var(--surface); }
+.lc-map .leaflet-control-attribution {
+  background: var(--surface) !important;
+  color: var(--text-subtle) !important;
+  font-size: 10px !important;
+  border-radius: 4px;
+}
+.lc-map .leaflet-popup-content-wrapper,
+.lc-map .leaflet-tooltip {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  font-size: 12px;
+}
+.lc-map .leaflet-tooltip::before { border-top-color: var(--border); }
+
+@media (prefers-reduced-motion: reduce) {
+  .lc-pin-sonar { animation: none !important; }
+  .leaflet-marker-icon { transition: none !important; }
+}
