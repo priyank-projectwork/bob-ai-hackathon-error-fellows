@@ -83,7 +83,7 @@ export default function ChatCopilot() {
           flex items-center justify-center
           transition-all duration-200 hover:scale-105
           ${isOpen
-            ? "bg-slate-700 hover:bg-slate-600 text-slate-300"
+            ? "lc-bg-sunk hover:bg-slate-600 lc-ink"
             : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/40"}
         `}
         aria-label="Toggle AI Copilot"
@@ -97,10 +97,10 @@ export default function ChatCopilot() {
 
       {/* Chat panel */}
       {isOpen && (
-        <div className="fixed bottom-20 right-6 z-[100] w-[380px] max-w-[calc(100vw-2rem)] h-[520px] max-h-[calc(100vh-100px)] flex flex-col rounded-2xl border border-slate-700/60 bg-[#0d1424] shadow-2xl shadow-black/60 overflow-hidden">
+        <div className="fixed bottom-20 right-6 z-[100] w-[380px] max-w-[calc(100vw-2rem)] h-[520px] max-h-[calc(100vh-100px)] flex flex-col rounded-2xl border lc-hair lc-bg-panel shadow-2xl shadow-black/60 overflow-hidden">
 
           {/* Header */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-800 bg-slate-900/80">
+          <div className="flex items-center gap-3 px-4 py-3 border-b lc-hair lc-bg-panel/80">
             <div className="w-7 h-7 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
               <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path d="M13 10V3L4 14h7v7l9-11h-7z" strokeLinecap="round" strokeLinejoin="round"/>
@@ -128,7 +128,7 @@ export default function ChatCopilot() {
                 <div className={`max-w-[82%] px-3 py-2 rounded-xl text-xs leading-relaxed ${
                   msg.sender === "user"
                     ? "bg-indigo-600 text-white rounded-tr-sm"
-                    : "bg-slate-800/80 border border-slate-700/50 text-slate-300 rounded-tl-sm"
+                    : "lc-bg-sunk/80 border lc-hair/50 lc-ink rounded-tl-sm"
                 }`}>
                   {msg.sender === "ai" ? (
                     <div className="prose prose-xs prose-invert max-w-none [&_p]:my-0.5 [&_ul]:my-1 [&_li]:my-0">
@@ -146,7 +146,7 @@ export default function ChatCopilot() {
                 <div className="w-5 h-5 rounded flex-shrink-0 mr-2 mt-0.5 bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center">
                   <svg className="w-3 h-3 text-indigo-400" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                 </div>
-                <div className="bg-slate-800/80 border border-slate-700/50 px-3 py-2.5 rounded-xl rounded-tl-sm flex items-center gap-1">
+                <div className="lc-bg-sunk/80 border lc-hair/50 px-3 py-2.5 rounded-xl rounded-tl-sm flex items-center gap-1">
                   <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
                   <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: "120ms" }} />
                   <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: "240ms" }} />
@@ -163,7 +163,7 @@ export default function ChatCopilot() {
                 <button
                   key={p}
                   onClick={() => { setInput(p); }}
-                  className="text-[10px] px-2.5 py-1 rounded-full border border-slate-700 text-slate-400 hover:border-indigo-500/50 hover:text-indigo-400 transition-colors bg-slate-800/50"
+                  className="text-[10px] px-2.5 py-1 rounded-full border lc-hair lc-ink-2 hover:border-indigo-500/50 hover:text-indigo-400 transition-colors lc-bg-sunk/50"
                 >
                   {p}
                 </button>
@@ -172,19 +172,19 @@ export default function ChatCopilot() {
           )}
 
           {/* Input */}
-          <div className="px-3 py-3 border-t border-slate-800 bg-slate-900/60">
+          <div className="px-3 py-3 border-t lc-hair lc-bg-panel/60">
             <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask about shipments, routes, temperature…"
-                className="flex-1 bg-slate-800/80 border border-slate-700/50 rounded-full px-3.5 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                className="flex-1 lc-bg-sunk/80 border lc-hair/50 rounded-full px-3.5 py-2 text-xs text-white placeholder:lc-ink-3 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
               />
               <button
                 type="submit"
                 disabled={!input.trim() || isTyping}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-white bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 transition-colors flex-shrink-0"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white bg-indigo-600 hover:bg-indigo-500 disabled:lc-bg-sunk disabled:lc-ink-3 transition-colors flex-shrink-0"
               >
                 <svg className="w-3.5 h-3.5 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
               </button>

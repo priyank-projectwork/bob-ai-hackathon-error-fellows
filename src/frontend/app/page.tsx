@@ -13,10 +13,10 @@ import { TimeBar } from "@/components/TimeBar";
 const LiveMap = dynamic(() => import("@/components/LiveMap"), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-[460px] bg-[#0a0f1a] flex items-center justify-center">
+    <div className="w-full h-[460px] lc-bg-sunk flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 border-2 border-slate-700 border-t-blue-500 rounded-full animate-spin" />
-        <span className="text-slate-600 text-xs font-medium tracking-widest uppercase">Loading map…</span>
+        <div className="w-8 h-8 border-2 lc-hair border-t-blue-500 rounded-full animate-spin" />
+        <span className="lc-ink-3 text-xs font-medium tracking-widest uppercase">Loading map…</span>
       </div>
     </div>
   ),
@@ -67,13 +67,13 @@ const SEV_BADGE: Record<AlertData["severity"], string> = {
   Critical: "bg-red-500/15 text-red-400 ring-1 ring-red-500/30",
   High:     "bg-orange-500/15 text-orange-400 ring-1 ring-orange-500/30",
   Watch:    "bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/30",
-  Normal:   "bg-slate-700 text-slate-400",
+  Normal:   "lc-bg-sunk lc-ink-2",
 };
 const SEV_BORDER: Record<AlertData["severity"], string> = {
   Critical: "border-red-800/40 bg-red-950/10",
   High:     "border-orange-800/30 bg-orange-950/10",
   Watch:    "border-amber-800/30 bg-amber-950/10",
-  Normal:   "border-slate-800 bg-slate-900/20",
+  Normal:   "lc-hair lc-bg-panel",
 };
 
 // ── Small reusable components ──────────────────────────────────────────────────
@@ -82,7 +82,7 @@ function ScoreMeter({ value }: { value: number }) {
   const color = value >= 75 ? "#f87171" : value >= 50 ? "#fb923c" : value >= 25 ? "#fbbf24" : "#34d399";
   return (
     <div className="flex items-center gap-2">
-      <div className="w-20 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+      <div className="w-20 h-1.5 rounded-full lc-bg-sunk overflow-hidden">
         <div className="h-full rounded-full transition-all duration-700" style={{ width: `${value}%`, background: color }} />
       </div>
       <span className="text-[11px] font-bold tabular-nums" style={{ color }}>{value}</span>
@@ -99,18 +99,18 @@ function LiveClock() {
     return () => clearInterval(id);
   }, []);
   if (!t) return null;
-  return <span className="text-[11px] font-mono text-slate-500 tabular-nums">{t}</span>;
+  return <span className="text-[11px] font-mono lc-ink-3 tabular-nums">{t}</span>;
 }
 
 function SectionHeader({ title, count, live }: { title: string; count?: number; live?: boolean }) {
   return (
     <div className="flex items-center justify-between mb-2">
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{title}</span>
+        <span className="text-[11px] font-bold uppercase tracking-widest lc-ink-2">{title}</span>
         {live && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
       </div>
       {count !== undefined && count > 0 && (
-        <span className="text-[10px] font-bold text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded-full">{count}</span>
+        <span className="text-[10px] font-bold lc-ink-3 lc-bg-sunk px-1.5 py-0.5 rounded-full">{count}</span>
       )}
     </div>
   );
@@ -123,8 +123,8 @@ function AlertRow({ alert, isNew }: { alert: AlertData; isNew: boolean }) {
         {alert.severity}
       </span>
       <div className="min-w-0">
-        <div className="font-semibold text-slate-200 truncate">{alert.title}</div>
-        <div className="text-slate-500 truncate">{alert.message}</div>
+        <div className="font-semibold lc-ink truncate">{alert.title}</div>
+        <div className="lc-ink-3 truncate">{alert.message}</div>
       </div>
     </div>
   );
@@ -135,9 +135,9 @@ function SensorRow({ log, isNew }: { log: SensorLog; isNew: boolean }) {
   const over = t > 8, warn = !over && t > 7;
   return (
     <div className={`flex items-center justify-between px-3 py-1.5 rounded-lg border
-      ${over ? "border-red-900/40 bg-red-950/10" : warn ? "border-amber-900/30" : "border-slate-800/40"}
+      ${over ? "border-red-900/40 bg-red-950/10" : warn ? "border-amber-900/30" : "lc-hair"}
       ${isNew ? "anim-slide-right" : ""}`}>
-      <span className="text-[10px] font-mono text-slate-500 truncate max-w-[90px]">{log.shipmentId}</span>
+      <span className="text-[10px] font-mono lc-ink-3 truncate max-w-[90px]">{log.shipmentId}</span>
       <span className={`text-[12px] font-bold tabular-nums ${over ? "text-red-400" : warn ? "text-amber-400" : "text-emerald-400"}`}>
         {t.toFixed(1)}°C
       </span>
@@ -163,14 +163,14 @@ function SimToast({ step, label }: { step: number; label: string }) {
       fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999]
       flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl shadow-black/60
       border backdrop-blur-md text-[12px] font-semibold
-      ${done ? "bg-emerald-950/90 border-emerald-700/50 text-emerald-300" : "bg-[#0b1424]/95 border-slate-700/60 text-slate-200"}
+      ${done ? "bg-emerald-950/90 border-emerald-700/50 text-emerald-300" : "lc-bg-panel lc-hair lc-ink"}
     `}>
       {!done
-        ? <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-600 border-t-blue-400 animate-spin flex-shrink-0" />
+        ? <div className="w-3.5 h-3.5 rounded-full border-2 lc-hair-strong border-t-blue-400 animate-spin flex-shrink-0" />
         : <span className="text-emerald-400">✓</span>}
       <div>
         <span className="font-bold">{label}</span>
-        <span className="text-slate-500 font-normal ml-2">{SIM_STEPS[Math.min(step, SIM_STEPS.length - 1)]}</span>
+        <span className="lc-ink-3 font-normal ml-2">{SIM_STEPS[Math.min(step, SIM_STEPS.length - 1)]}</span>
       </div>
     </div>
   );
@@ -215,7 +215,7 @@ function getModeInfo(routeStr: string = "", origin: string = "", modes?: string[
 }
 
 // Build a readable "Origin → ... → Destination" chain from the full route string
-function RouteChain({ route, color = "text-slate-300" }: { route: string; color?: string }) {
+function RouteChain({ route, color = "lc-ink" }: { route: string; color?: string }) {
   const parts = route.split("→").map(s => s.trim()).filter(Boolean);
   return (
     <span className="flex flex-wrap items-center gap-0.5 leading-snug">
@@ -223,7 +223,7 @@ function RouteChain({ route, color = "text-slate-300" }: { route: string; color?
         <span key={i} className="flex items-center gap-0.5">
           <span className={`text-[9px] font-semibold ${color}`}>{p}</span>
           {i < parts.length - 1 && (
-            <span className="text-slate-600 text-[9px] font-bold mx-0.5">→</span>
+            <span className="lc-ink-3 text-[9px] font-bold mx-0.5">→</span>
           )}
         </span>
       ))}
@@ -264,10 +264,10 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
   // Priority badge colour
   const priorityColor = priority === "Critical" ? "text-red-400 bg-red-500/10 ring-1 ring-red-500/20"
     : priority === "High"     ? "text-orange-400 bg-orange-500/10 ring-1 ring-orange-500/20"
-    : "text-slate-400 bg-slate-800";
+    : "lc-ink-2 lc-bg-sunk";
 
   return (
-    <div className="rounded-xl border border-slate-700/40 bg-slate-800/30 overflow-hidden anim-slide-down">
+    <div className="rounded-xl border lc-hair/40 lc-bg-sunk overflow-hidden anim-slide-down">
 
       {/* ── Problem banner ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 px-3.5 pt-2.5 pb-2 border-b border-red-900/20 bg-red-950/10">
@@ -275,7 +275,7 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
         <span className="text-[9px] font-bold uppercase tracking-wider text-red-400/80">
           {disruptionType} blocks this route
         </span>
-        <span className="ml-auto text-[9px] font-mono text-slate-600">{rec.entityId}</span>
+        <span className="ml-auto text-[9px] font-mono lc-ink-3">{rec.entityId}</span>
       </div>
 
       {/* ── Cargo info strip ───────────────────────────────────────────────── */}
@@ -286,11 +286,11 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
               {priority}
             </span>
           )}
-          {cargoType && <span className="text-[9px] text-slate-500">{cargoType}</span>}
+          {cargoType && <span className="text-[9px] lc-ink-3">{cargoType}</span>}
           {cargoValue > 0 && (
-            <span className="text-[9px] text-slate-600 font-mono">${(cargoValue / 1000).toFixed(0)}k cargo</span>
+            <span className="text-[9px] lc-ink-3 font-mono">${(cargoValue / 1000).toFixed(0)}k cargo</span>
           )}
-          {carrier && <span className="text-[9px] text-slate-600 truncate ml-auto">{carrier}</span>}
+          {carrier && <span className="text-[9px] lc-ink-3 truncate ml-auto">{carrier}</span>}
         </div>
       )}
 
@@ -298,14 +298,14 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
       <div className="flex items-center justify-between px-3.5 pt-1.5 pb-1.5 gap-2">
         <div className="text-[9px] font-bold uppercase tracking-widest text-indigo-400">{rec.recommendationType}</div>
         <div className="flex-shrink-0 flex items-center gap-1.5">
-          <span className="text-[9px] text-slate-600">Risk</span>
+          <span className="text-[9px] lc-ink-3">Risk</span>
           <ScoreMeter value={rec.score} />
         </div>
       </div>
 
       {/* ── BEFORE / AI FIX comparison ─────────────────────────────────────── */}
       {alt && (
-        <div className="mx-3.5 mb-2 rounded-lg overflow-hidden border border-slate-800/60">
+        <div className="mx-3.5 mb-2 rounded-lg overflow-hidden border lc-hair">
 
           {/* BEFORE row — actual blocked route with mode icon */}
           <div className="px-2.5 py-2 bg-red-950/20 border-b border-red-900/20">
@@ -338,7 +338,7 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
               )}
               {/* Priority-weighted selection hint */}
               {priority && (
-                <span className="text-[7px] text-slate-600 ml-auto flex-shrink-0">
+                <span className="text-[7px] lc-ink-3 ml-auto flex-shrink-0">
                   ranked by {priority === "Critical" ? "safety" : priority === "High" ? "risk+cost" : "cost"}
                 </span>
               )}
@@ -348,19 +348,19 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
               <span className={`text-[10px] font-bold tabular-nums ${alt.costDelta > 0 ? "text-amber-400" : "text-emerald-400"}`}>
                 {alt.costDelta > 0 ? `+$${alt.costDelta.toLocaleString()}` : "no extra cost"}
               </span>
-              <span className="text-slate-700 text-[9px]">·</span>
+              <span className="lc-ink-3 text-[9px]">·</span>
               <span className={`text-[10px] font-bold tabular-nums ${alt.timeDeltaHours > 0 ? "text-amber-400" : "text-emerald-400"}`}>
                 {alt.timeDeltaHours > 0 ? `+${alt.timeDeltaHours}h` : `${Math.abs(alt.timeDeltaHours)}h faster`}
               </span>
-              <span className="text-slate-700 text-[9px]">·</span>
-              <span className="text-[9px] text-slate-500">Risk {alt.riskScore}/100</span>
+              <span className="lc-ink-3 text-[9px]">·</span>
+              <span className="text-[9px] lc-ink-3">Risk {alt.riskScore}/100</span>
             </div>
             <RouteChain route={alt.route} color="text-emerald-300/90" />
           </div>
 
           {/* Fleet assigned */}
           {fleet && (
-            <div className="flex items-center gap-2 px-2.5 py-1.5 bg-cyan-950/10 border-t border-slate-800/60">
+            <div className="flex items-center gap-2 px-2.5 py-1.5 bg-cyan-950/10 border-t lc-hair">
               <svg className="w-3 h-3 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2 1M13 16l2 1M13 16V9a1 1 0 011-1h2.586a1 1 0 01.707.293l3 3a1 1 0 01.293.707V16"/>
@@ -368,9 +368,9 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
               <span className="text-[8px] font-bold text-cyan-400 uppercase tracking-widest">Fleet Dispatched</span>
               <span className="text-[9px] text-cyan-300/80 font-semibold">{fleet.fleet.assetId}</span>
               {fleet.fleet.locationName && (
-                <span className="text-[9px] text-slate-600 truncate flex-1">{fleet.fleet.locationName}</span>
+                <span className="text-[9px] lc-ink-3 truncate flex-1">{fleet.fleet.locationName}</span>
               )}
-              <span className="text-[9px] text-slate-600 flex-shrink-0">{fleet.distanceKm}km</span>
+              <span className="text-[9px] lc-ink-3 flex-shrink-0">{fleet.distanceKm}km</span>
             </div>
           )}
         </div>
@@ -378,23 +378,23 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
 
       {/* Fleet match strip (when no alt route) */}
       {fleet && !alt && (
-        <div className="mx-3.5 mb-2 rounded-lg border border-slate-800/60 px-2.5 py-1.5 bg-cyan-950/10 flex items-center gap-2">
+        <div className="mx-3.5 mb-2 rounded-lg border lc-hair px-2.5 py-1.5 bg-cyan-950/10 flex items-center gap-2">
           <span className="text-[8px] font-bold text-cyan-400 bg-cyan-500/10 px-1 py-0.5 rounded flex-shrink-0">FLEET</span>
           <span className="text-[9px] text-cyan-300/80 font-semibold">{fleet.fleet.assetId}</span>
-          {fleet.fleet.locationName && <span className="text-[9px] text-slate-600 truncate">{fleet.fleet.locationName}</span>}
-          <span className="text-[9px] text-slate-600 ml-auto flex-shrink-0">{fleet.distanceKm}km</span>
+          {fleet.fleet.locationName && <span className="text-[9px] lc-ink-3 truncate">{fleet.fleet.locationName}</span>}
+          <span className="text-[9px] lc-ink-3 ml-auto flex-shrink-0">{fleet.distanceKm}km</span>
         </div>
       )}
 
       {/* Rationale — collapsible */}
       <div className="px-3.5 pb-1.5">
-        <p className={`text-[10px] text-slate-500 leading-relaxed ${expanded ? "" : "line-clamp-2"}`}>
+        <p className={`text-[10px] lc-ink-3 leading-relaxed ${expanded ? "" : "line-clamp-2"}`}>
           {rec.rationale}
         </p>
         {rec.rationale.length > 100 && (
           <button
             onClick={() => setExpanded(e => !e)}
-            className="text-[9px] text-slate-700 hover:text-slate-400 mt-0.5 transition-colors"
+            className="text-[9px] lc-ink-3 hover:lc-ink-2 mt-0.5 transition-colors"
           >
             {expanded ? "show less ↑" : "full rationale ↓"}
           </button>
@@ -402,7 +402,7 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2 px-3.5 pb-3 pt-1.5 border-t border-slate-800/50">
+      <div className="flex gap-2 px-3.5 pb-3 pt-1.5 border-t lc-hair/50">
         <button
           data-tour="see-on-map"
           onClick={onPreview}
@@ -416,7 +416,7 @@ function RecCard({ rec, shipment, disruption, onPreview, onReject, onApprove }: 
         </button>
         <button
           onClick={onReject}
-          className="px-2.5 py-1.5 text-[10px] font-semibold text-slate-500 hover:text-red-400 border border-slate-800 hover:border-red-900/40 rounded-lg transition-colors"
+          className="px-2.5 py-1.5 text-[10px] font-semibold lc-ink-3 hover:text-red-400 border lc-hair hover:border-red-900/40 rounded-lg transition-colors"
         >
           Reject
         </button>
@@ -496,7 +496,7 @@ export default function Dashboard() {
       key: "la",      label: "LA Port Strike",  type: "Port Strike", location: "Los Angeles",
       description: "Congestion at LA/Long Beach — affects 2 vaccine shipments",
       // colours per state
-      idleClass:    "border-slate-800 bg-slate-900/20 text-slate-500",
+      idleClass:    "lc-hair lc-bg-panel lc-ink-3",
       activeClass:  "border-rose-500/60 bg-rose-500/10 text-rose-300 ring-1 ring-rose-500/20",
       runningClass: "border-rose-400/80 bg-rose-500/15 text-rose-200 ring-2 ring-rose-400/30",
       dot:  "bg-rose-500",
@@ -505,7 +505,7 @@ export default function Dashboard() {
     {
       key: "chicago", label: "Chicago Blizzard", type: "Blizzard",   location: "Chicago",
       description: "I-90/I-94 corridor blocked — 1 critical shipment held",
-      idleClass:    "border-slate-800 bg-slate-900/20 text-slate-500",
+      idleClass:    "lc-hair lc-bg-panel lc-ink-3",
       activeClass:  "border-sky-500/60 bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/20",
       runningClass: "border-sky-400/80 bg-sky-500/15 text-sky-200 ring-2 ring-sky-400/30",
       dot:  "bg-sky-400",
@@ -514,7 +514,7 @@ export default function Dashboard() {
     {
       key: "miami",   label: "Miami Hurricane",  type: "Hurricane",   location: "Miami",
       description: "Mandatory hold — cold storage at Atlanta staged",
-      idleClass:    "border-slate-800 bg-slate-900/20 text-slate-500",
+      idleClass:    "lc-hair lc-bg-panel lc-ink-3",
       activeClass:  "border-teal-500/60 bg-teal-500/10 text-teal-300 ring-1 ring-teal-500/20",
       runningClass: "border-teal-400/80 bg-teal-500/15 text-teal-200 ring-2 ring-teal-400/30",
       dot:  "bg-teal-400",
@@ -794,10 +794,10 @@ export default function Dashboard() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="lc-legacy min-h-screen bg-[#060b14] text-slate-100 font-sans">
+    <div className="min-h-screen lc-bg-app lc-ink font-sans">
 
       {/* ══ NAV ════════════════════════════════════════════════════════════════ */}
-      <header className="sticky top-0 z-50 border-b border-slate-800/60 bg-[#060b14]/92 backdrop-blur-lg">
+      <header className="sticky top-0 z-50 border-b lc-hair lc-bg-app backdrop-blur-lg">
         <div className="max-w-[1600px] mx-auto px-5 flex items-center justify-between gap-4" style={{ height: 52 }}>
           <div className="flex items-center gap-2.5">
             {/* Logo: snowflake-in-network — cold-chain supply chain icon */}
@@ -821,20 +821,20 @@ export default function Dashboard() {
             <div className="flex flex-col leading-none gap-0.5">
               <span className="text-[13px] font-bold text-white tracking-tight">
                 SupplyChain<span className="text-cyan-400">AI</span>
-                <span className="ml-1 text-[10px] font-semibold text-slate-400">Copilot</span>
+                <span className="ml-1 text-[10px] font-semibold lc-ink-2">Copilot</span>
               </span>
-              <span className="hidden md:inline text-[8px] font-bold uppercase tracking-[0.18em] text-slate-600">
+              <span className="hidden md:inline text-[8px] font-bold uppercase tracking-[0.18em] lc-ink-3">
                 Cold‑Chain Command Center
               </span>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <LiveClock />
-            <div className="h-4 border-l border-slate-800" />
+            <div className="h-4 border-l lc-hair" />
             {/* Tour launcher button */}
             <button
               onClick={() => setShowTour(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-blue-400 border border-slate-800 hover:border-blue-800/60 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest lc-ink-3 hover:text-blue-400 border lc-hair hover:border-blue-800/60 rounded-lg transition-colors"
               title="Take a guided tour"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -842,12 +842,12 @@ export default function Dashboard() {
               </svg>
               Tour
             </button>
-            <div className="h-4 border-l border-slate-800" />
+            <div className="h-4 border-l lc-hair" />
             <ThemeToggle />
-            <a href="/tower" className="text-[11px] text-slate-500 underline hover:text-slate-300">
+            <a href="/tower" className="text-[11px] lc-ink-3 underline hover:lc-ink">
               triage view
             </a>
-            <div className="h-4 border-l border-slate-800" />
+            <div className="h-4 border-l lc-hair" />
             <div className="flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${isConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
               <span className={`text-[11px] font-semibold ${isConnected ? "text-emerald-400" : "text-red-400"}`}>
@@ -883,10 +883,10 @@ export default function Dashboard() {
             { label: "Idle Fleet Assets",   value: kpis.idleAssets,          color: "text-emerald-400", sub: "" },
             { label: "Cold Chain Alerts",   value: kpis.openColdChainAlerts, color: "text-blue-400", sub: "" },
           ].map(k => (
-          <div key={k.label} className="rounded-xl border border-slate-800/60 bg-slate-900/30 px-4 py-3">
-              <div className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1">{k.label}</div>
+          <div key={k.label} className="rounded-xl border lc-hair lc-bg-panel px-4 py-3">
+              <div className="text-[11px] font-bold uppercase tracking-widest lc-ink-3 mb-1">{k.label}</div>
               <div className={`text-2xl font-black tabular-nums ${k.color}`}>{k.value}</div>
-              {k.sub && <div className="text-[11px] text-slate-500 mt-0.5">{k.sub}</div>}
+              {k.sub && <div className="text-[11px] lc-ink-3 mt-0.5">{k.sub}</div>}
             </div>
           ))}
         </div>
@@ -906,18 +906,18 @@ export default function Dashboard() {
         <div data-tour="scenarios">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Simulate Scenario</span>
-              <span className="text-[10px] text-slate-700">— one active at a time</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest lc-ink-3">Simulate Scenario</span>
+              <span className="text-[10px] lc-ink-3">— one active at a time</span>
             </div>
             {/* Reset button — only shown when something is active */}
             {(activeScenario || pendingRecs.length > 0) && (
               <button
                 onClick={handleReset}
                 disabled={isResetting || simKey !== null}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-white border border-slate-800 hover:border-slate-600 rounded-lg transition-colors disabled:opacity-40"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest lc-ink-3 hover:text-white border lc-hair hover:lc-hair-strong rounded-lg transition-colors disabled:opacity-40"
               >
                 {isResetting
-                  ? <span className="w-2.5 h-2.5 border border-slate-600 border-t-slate-300 rounded-full animate-spin" />
+                  ? <span className="w-2.5 h-2.5 border lc-hair-strong border-t-slate-300 rounded-full animate-spin" />
                   : <span>↺</span>}
                 Reset
               </button>
@@ -962,7 +962,7 @@ export default function Dashboard() {
                   </div>
 
                   {/* Label */}
-                  <div className={`text-[13px] font-bold mb-1 pr-12 ${isRunning || isActive ? "" : "text-slate-400"}`}>
+                  <div className={`text-[13px] font-bold mb-1 pr-12 ${isRunning || isActive ? "" : "lc-ink-2"}`}>
                     {s.label}
                   </div>
 
@@ -981,14 +981,14 @@ export default function Dashboard() {
                                 ? <span className="w-2.5 h-2.5 rounded-full border-2 border-current border-t-transparent animate-spin block" />
                                 : <span className="w-1.5 h-1.5 rounded-full bg-current opacity-30 block" />}
                             </span>
-                            <span className={done ? "text-emerald-400/70 line-through" : current ? "text-current font-semibold" : "text-slate-600"}>
+                            <span className={done ? "text-emerald-400/70 line-through" : current ? "text-current font-semibold" : "lc-ink-3"}>
                               {stepLabel}
                             </span>
                           </div>
                         );
                       })}
                       {/* Progress bar */}
-                      <div className="mt-2 h-px bg-slate-800 rounded-full overflow-hidden">
+                      <div className="mt-2 h-px lc-bg-sunk rounded-full overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all duration-700"
                           style={{ width: `${((simStep + 1) / SIM_STEPS.length) * 100}%`, background: "currentColor", opacity: 0.5 }}
@@ -996,7 +996,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                   ) : (
-                    <div className="text-[11px] text-slate-600 leading-snug">{s.description}</div>
+                    <div className="text-[11px] lc-ink-3 leading-snug">{s.description}</div>
                   )}
                 </button>
               );
@@ -1010,10 +1010,10 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
 
           {/* Map */}
-          <div data-tour="map" className="xl:col-span-8 rounded-xl overflow-hidden border border-slate-800/60">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800/60 bg-slate-900/30">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Live Fleet & Disruption Map</span>
-              <div className="flex items-center gap-3 text-[9px] font-bold uppercase tracking-widest text-slate-700">
+          <div data-tour="map" className="xl:col-span-8 rounded-xl overflow-hidden border lc-hair">
+            <div className="flex items-center justify-between px-4 py-2 border-b lc-hair lc-bg-panel">
+              <span className="text-[10px] font-bold uppercase tracking-widest lc-ink-3">Live Fleet & Disruption Map</span>
+              <div className="flex items-center gap-3 text-[9px] font-bold uppercase tracking-widest lc-ink-3">
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" />Shipment</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" />Fleet</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500/60 border border-red-500" />Disruption</span>
@@ -1049,13 +1049,13 @@ export default function Dashboard() {
             <SectionHeader title="AI Action Center" count={pendingRecs.length} />
 
             {pendingRecs.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-800 bg-slate-900/20 text-slate-700 text-[11px] min-h-[220px]">
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed lc-hair lc-bg-panel lc-ink-3 text-[11px] min-h-[220px]">
                 <svg className="w-7 h-7 opacity-25" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
                   <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
                 <div className="text-center">
-                  <div className="text-slate-600 font-semibold mb-1">No pending actions</div>
-                  <div className="text-slate-700 text-[10px]">Trigger a scenario above<br/>to generate AI recommendations</div>
+                  <div className="lc-ink-3 font-semibold mb-1">No pending actions</div>
+                  <div className="lc-ink-3 text-[10px]">Trigger a scenario above<br/>to generate AI recommendations</div>
                 </div>
               </div>
             ) : (
@@ -1118,7 +1118,7 @@ export default function Dashboard() {
                     live
                   />
                   {filteredAlerts.length === 0
-                    ? <div className="flex items-center justify-center h-24 rounded-xl border border-dashed border-slate-800 text-slate-700 text-xs">
+                    ? <div className="flex items-center justify-center h-24 rounded-xl border border-dashed lc-hair lc-ink-3 text-xs">
                         {activeScenario ? "No incidents for this scenario yet — pipeline running…" : "No active incidents"}
                       </div>
                     : <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
@@ -1135,8 +1135,8 @@ export default function Dashboard() {
             <SectionHeader title="Live Sensor Feed" live />
             <div className="space-y-1 max-h-[280px] overflow-y-auto">
               {logs.length === 0
-                ? <div className="flex items-center justify-center gap-2 h-24 text-slate-700 text-[11px]">
-                    <div className="w-3.5 h-3.5 border border-slate-800 border-t-blue-700 rounded-full animate-spin" />
+                ? <div className="flex items-center justify-center gap-2 h-24 lc-ink-3 text-[11px]">
+                    <div className="w-3.5 h-3.5 border lc-hair border-t-blue-700 rounded-full animate-spin" />
                     Awaiting telemetry…
                   </div>
                 : logs.map((log, i) => {
@@ -1157,22 +1157,22 @@ export default function Dashboard() {
         <div data-tour="audit" className="pb-24">
           <SectionHeader title="Audit Trail" count={auditEvents.length} />
           {auditEvents.length === 0
-            ? <div className="flex items-center justify-center h-14 rounded-xl border border-dashed border-slate-800 text-slate-700 text-[11px]">
+            ? <div className="flex items-center justify-center h-14 rounded-xl border border-dashed lc-hair lc-ink-3 text-[11px]">
                 Approve or reject a recommendation to generate records
               </div>
             : <div className="space-y-1.5">
                 {auditEvents.slice(0, 10).map((evt: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-800/40 bg-slate-900/20 text-[11px]">
+                  <div key={i} className="flex items-center justify-between px-4 py-2.5 rounded-xl border lc-hair lc-bg-panel text-[11px]">
                     <div className="flex items-center gap-3">
                       <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${
                         evt.eventType === "ApproveRecommendation" ? "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20" :
                         evt.eventType === "RejectRecommendation"  ? "bg-red-500/10 text-red-400 ring-1 ring-red-500/20" :
-                        "bg-slate-800 text-slate-500"
+                        "lc-bg-sunk lc-ink-3"
                       }`}>{evt.eventType}</span>
-                      <span className="text-slate-500">{evt.entityType}</span>
-                      <span className="text-slate-700 font-mono">{String(evt.entityId).slice(-8)}</span>
+                      <span className="lc-ink-3">{evt.entityType}</span>
+                      <span className="lc-ink-3 font-mono">{String(evt.entityId).slice(-8)}</span>
                     </div>
-                    <span className="text-slate-700 tabular-nums">{new Date(evt.createdAt).toLocaleTimeString()}</span>
+                    <span className="lc-ink-3 tabular-nums">{new Date(evt.createdAt).toLocaleTimeString()}</span>
                   </div>
                 ))}
               </div>

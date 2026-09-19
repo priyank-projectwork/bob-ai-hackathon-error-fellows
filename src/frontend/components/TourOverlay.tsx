@@ -205,10 +205,10 @@ export default function TourOverlay({ onDone }: { onDone: () => void }) {
         className="absolute pointer-events-auto"
         style={{ top: tipTop, left: tipLeft, width: TIP_W }}
       >
-        <div className="bg-[#0b1424] border border-slate-700/70 rounded-2xl shadow-2xl shadow-black/70 overflow-hidden">
+        <div className="lc-bg-panel border lc-hair/70 rounded-2xl shadow-2xl shadow-black/70 overflow-hidden">
 
           {/* Header */}
-          <div className="flex items-center justify-between px-4 pt-3.5 pb-2 border-b border-slate-800/60">
+          <div className="flex items-center justify-between px-4 pt-3.5 pb-2 border-b lc-hair">
             <div className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
               <span className="text-[9px] font-bold uppercase tracking-widest text-blue-400">
@@ -217,7 +217,7 @@ export default function TourOverlay({ onDone }: { onDone: () => void }) {
             </div>
             <button
               onClick={onDone}
-              className="text-slate-600 hover:text-slate-300 text-[16px] leading-none transition-colors"
+              className="lc-ink-3 hover:lc-ink text-[16px] leading-none transition-colors"
               aria-label="Close tour"
             >×</button>
           </div>
@@ -225,7 +225,7 @@ export default function TourOverlay({ onDone }: { onDone: () => void }) {
           {/* Body */}
           <div className="px-4 py-3">
             <div className="text-[13px] font-bold text-white mb-1.5">{current.title}</div>
-            <div className="text-[11px] text-slate-400 leading-relaxed">{current.body}</div>
+            <div className="text-[11px] lc-ink-2 leading-relaxed">{current.body}</div>
             {isMissing && (current as { hint?: string }).hint && (
               <div className="mt-2.5 flex items-start gap-2 bg-amber-500/10 border border-amber-500/25 rounded-lg px-2.5 py-2">
                 <span className="text-amber-400 text-[12px] flex-shrink-0 mt-px">⚡</span>
@@ -246,7 +246,7 @@ export default function TourOverlay({ onDone }: { onDone: () => void }) {
                     ? "w-4 h-1.5 bg-blue-500"
                     : i < step
                     ? "w-1.5 h-1.5 bg-blue-500/40"
-                    : "w-1.5 h-1.5 bg-slate-700"
+                    : "w-1.5 h-1.5 lc-bg-sunk"
                 }`}
               />
             ))}
@@ -257,7 +257,7 @@ export default function TourOverlay({ onDone }: { onDone: () => void }) {
             {step > 0 && (
               <button
                 onClick={goPrev}
-                className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-[10px] font-semibold lc-ink-2 hover:text-white border lc-hair hover:border-slate-500 rounded-lg transition-colors"
               >← Back</button>
             )}
             <button

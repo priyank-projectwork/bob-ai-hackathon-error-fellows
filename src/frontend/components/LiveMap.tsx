@@ -117,23 +117,24 @@ const MAP_STYLES = `
   80%  { transform:scale(2.8); opacity:0; }
   100% { transform:scale(2.8); opacity:0; }
 }
-.leaflet-tile {
-  filter: invert(1) hue-rotate(180deg) brightness(0.65) contrast(1.25) saturate(0.8);
-}
-.leaflet-container { background:#060b14 !important; }
+/* Tiles are inverted for the dark theme only. --map-filter is defined per
+   theme in globals.css, so light mode shows the map as drawn instead of as a
+   negative. */
+.leaflet-tile { filter: var(--map-filter); }
+.leaflet-container { background: var(--surface-raised) !important; }
 .leaflet-attribution-flag { display:none !important; }
 .leaflet-control-attribution {
-  background:rgba(6,11,20,0.75) !important; color:#334155 !important;
+  background: var(--surface) !important; color: var(--text-subtle) !important;
   font-size:8px !important; border-radius:4px !important; padding:2px 5px !important;
 }
 .cc-popup .leaflet-popup-content-wrapper {
-  background:#0b1424; border:1px solid #1e3a5f; border-radius:12px;
-  color:#cbd5e1; font-size:12px; padding:0;
+  background: var(--surface); border:1px solid var(--border); border-radius:12px;
+  color: var(--text); font-size:12px; padding:0;
   box-shadow:0 16px 48px rgba(0,0,0,0.8); min-width:170px;
 }
 .cc-popup .leaflet-popup-content { margin:0; }
 .cc-popup .leaflet-popup-tip-container { margin-top:-1px; }
-.cc-popup .leaflet-popup-tip { background:#0b1424; }
+.cc-popup .leaflet-popup-tip { background: var(--surface); }
 .cc-popup .leaflet-popup-close-button {
   color:#475569 !important; font-size:16px !important;
   top:8px !important; right:10px !important; padding:0 !important;

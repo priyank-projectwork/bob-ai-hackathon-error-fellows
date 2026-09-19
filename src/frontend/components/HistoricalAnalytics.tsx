@@ -30,8 +30,8 @@ const SHIP_COLORS: Record<string, string> = {
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-xl min-w-[160px]">
-      <div className="text-slate-500 mb-1.5">{label}</div>
+    <div className="lc-bg-panel border lc-hair rounded-lg px-3 py-2 text-xs shadow-xl min-w-[160px]">
+      <div className="lc-ink-3 mb-1.5">{label}</div>
       {payload.map((p: any) => {
         const t = p.value as number;
         const isExcursion = t > SAFE_MAX;
@@ -70,17 +70,17 @@ export default function HistoricalAnalytics() {
     : [];
 
   return (
-    <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 overflow-hidden">
+    <div className="rounded-xl border lc-hair/80 lc-bg-panel overflow-hidden">
       {/* Panel header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 bg-slate-800/40">
+      <div className="flex items-center justify-between px-5 py-3 border-b lc-hair lc-bg-sunk/40">
         <div>
-          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">Shipment Temperature Trends</h2>
-          <p className="text-[11px] text-slate-600 mt-0.5">
+          <h2 className="text-xs font-bold uppercase tracking-widest lc-ink-2">Shipment Temperature Trends</h2>
+          <p className="text-[11px] lc-ink-3 mt-0.5">
             Avg cargo temp per shipment · last 24 h · {shipmentKeys.length > 0 ? `${shipmentKeys.length} shipments tracked` : "all active shipments"}
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
+          <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-widest lc-ink-3">
             <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t border-dashed border-red-500/60" />Excursion (8°C)</span>
             <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t border-dashed border-amber-400/50" />Watch (7°C)</span>
           </div>
@@ -97,12 +97,12 @@ export default function HistoricalAnalytics() {
       {/* Chart */}
       <div className="px-4 py-4">
         {loading ? (
-          <div className="h-56 flex items-center justify-center gap-2 text-slate-600 text-xs">
-            <div className="w-4 h-4 border border-slate-700 border-t-blue-600 rounded-full animate-spin" />
+          <div className="h-56 flex items-center justify-center gap-2 lc-ink-3 text-xs">
+            <div className="w-4 h-4 border lc-hair border-t-blue-600 rounded-full animate-spin" />
             Loading historical data…
           </div>
         ) : data.length === 0 ? (
-          <div className="h-56 flex items-center justify-center text-slate-600 text-xs">
+          <div className="h-56 flex items-center justify-center lc-ink-3 text-xs">
             No data available — trigger a scenario to generate telemetry
           </div>
         ) : (
