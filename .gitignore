@@ -96,3 +96,7 @@ logs/
 bob-task-*.json
 # Tooling
 .serena/
+
+# Scratch/debug scripts
+_*_test.js
+_*_test.sh
